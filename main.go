@@ -57,6 +57,10 @@ func main() {
 		logger.ErrorContext(ctx, "failed to register tool rename_sheet", "error", err)
 		os.Exit(1)
 	}
+	if err := server.RegisterTool("list_sheets", "List sheets in google sheet", sheet.ListSheetsHandler); err != nil {
+		logger.ErrorContext(ctx, "failed to register tool list_sheets", "error", err)
+		os.Exit(1)
+	}
 	if err := server.Serve(); err != nil {
 		logger.ErrorContext(ctx, "failed to serve", "error", err)
 		os.Exit(1)

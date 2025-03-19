@@ -46,6 +46,10 @@ type RenameSheetRequest struct {
 	NewName string `json:"new_name" jsonschema:"required,description=new sheet name"`
 }
 
+type ListSheetsRequest struct {
+	SpreadsheetName string `json:"path" jsonschema:"required,description=spreadsheet name"`
+}
+
 // パスからスプレッドシートIDとシート名を抽出する
 // 例: "MySpreadsheet/Sheet1" -> "spreadsheetId", "Sheet1"
 func (gs *GoogleSheets) parseSheetPath(sheetPath string) (string, string, error) {
@@ -70,6 +74,22 @@ func (gs *GoogleSheets) parseSheetPath(sheetPath string) (string, string, error)
 
 	spreadsheetId := fileList.Files[0].Id
 	return spreadsheetId, sheetName, nil
+}
+
+// スプレッドシート名からスプレッドシートIDを取得する
+func (gs *GoogleSheets) getSpreadsheetId(spreadsheetName string) (string, error) {
+	// スプレッドシート名からIDを検索
+	query := fmt.Sprintf("'%s' in parents and name = '%s' and mimeType = 'application/vnd.google-apps.spreadsheet' and trashed = false", gs.cfg.FolderID, spreadsheetName)
+	fileList, err := gs.drive.Files.List().Q(query).Fields("files(id, name)").Do()
+	if err != nil {
+		return "", fmt.Errorf("failed to find spreadsheet: %w", err)
+	}
+
+	if len(fileList.Files) == 0 {
+		return "", fmt.Errorf("spreadsheet not found: %s", spreadsheetName)
+	}
+
+	return fileList.Files[0].Id, nil
 }
 
 // シートIDを取得する
@@ -190,5 +210,36 @@ func (gs *GoogleSheets) RenameSheetHandler(request RenameSheetRequest) (*mcp.Too
 
 	return mcp.NewToolResponse(
 		mcp.NewTextContent(fmt.Sprintf("Sheet '%s' successfully renamed to '%s'", request.Path, request.NewName)),
+	), nil
+}
+
+func (gs *GoogleSheets) ListSheetsHandler(request ListSheetsRequest) (*mcp.ToolResponse, error) {
+	// スプレッドシート名からスプレッドシートIDを取得
+	spreadsheetId, err := gs.getSpreadsheetId(request.SpreadsheetName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get spreadsheet ID: %w", err)
+	}
+
+	// スプレッドシートの情報を取得
+	spreadsheet, err := gs.service.Spreadsheets.Get(spreadsheetId).Do()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get spreadsheet: %w", err)
+	}
+
+	// 結果を整形
+	var result strings.Builder
+	result.WriteString(fmt.Sprintf("Sheets in spreadsheet '%s':\n\n", request.SpreadsheetName))
+
+	// シート情報を表示
+	for i, sheet := range spreadsheet.Sheets {
+		result.WriteString(fmt.Sprintf("%d. %s (ID: %d)\n", i+1, sheet.Properties.Title, sheet.Properties.SheetId))
+	}
+
+	// 合計数
+	result.WriteString(fmt.Sprintf("\nTotal: %d sheets\n", len(spreadsheet.Sheets)))
+
+	// 成功レスポンスを返す
+	return mcp.NewToolResponse(
+		mcp.NewTextContent(result.String()),
 	), nil
 }
