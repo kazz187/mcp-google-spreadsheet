@@ -4,6 +4,8 @@ import (
 	"context"
 	"log/slog"
 	"os"
+	"os/signal"
+	"syscall"
 
 	mcp "github.com/metoro-io/mcp-golang"
 	"github.com/metoro-io/mcp-golang/transport/stdio"
@@ -11,7 +13,8 @@ import (
 
 func main() {
 	logger := slog.Default()
-	ctx := context.Background()
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer cancel()
 	cfg, err := NewConfig()
 	if err != nil {
 		logger.ErrorContext(ctx, "failed to create config", "error", err)
@@ -46,4 +49,5 @@ func main() {
 		logger.ErrorContext(ctx, "failed to serve", "error", err)
 		os.Exit(1)
 	}
+	<-ctx.Done()
 }

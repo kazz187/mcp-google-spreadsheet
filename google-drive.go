@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 
+	mcp "github.com/metoro-io/mcp-golang"
 	"google.golang.org/api/drive/v3"
 	"google.golang.org/api/option"
 )
@@ -25,14 +26,14 @@ func NewGoogleDrive(ctx context.Context, cfg *Config, client *http.Client) (*Goo
 	}, nil
 }
 
-type CopyFileInput struct {
+type CopyFileRequest struct {
 	SrcPath string `json:"src_path" jsonschema:"required,description=source path"`
 	DstPath string `json:"dst_path" jsonschema:"required,description=destination path"`
 }
 
-type CopyFileOutput struct{}
-
-func (gd *GoogleDrive) CopyFileHandler(input CopyFileInput) (CopyFileOutput, error) {
+func (gd *GoogleDrive) CopyFileHandler(request CopyFileRequest) (*mcp.ToolResponse, error) {
 	// TODO: Implement
-	return CopyFileOutput{}, nil
+	return mcp.NewToolResponse(
+		mcp.NewTextContent("success"),
+	), nil
 }
