@@ -55,6 +55,18 @@ type GetSheetDataRequest struct {
 	Range string `json:"range" jsonschema:"description=cell range (e.g. A1:C10, default: all data)"`
 }
 
+type AddRowsRequest struct {
+	Path     string `json:"path" jsonschema:"required,description=sheet path (format: SpreadsheetName/SheetName)"`
+	Count    int64  `json:"count" jsonschema:"required,description=number of rows to add"`
+	StartRow int64  `json:"start_row" jsonschema:"description=row index to start adding (0-based, default: append to end)"`
+}
+
+type AddColumnsRequest struct {
+	Path        string `json:"path" jsonschema:"required,description=sheet path (format: SpreadsheetName/SheetName)"`
+	Count       int64  `json:"count" jsonschema:"required,description=number of columns to add"`
+	StartColumn int64  `json:"start_column" jsonschema:"description=column index to start adding (0-based, default: append to end)"`
+}
+
 // パスからスプレッドシートIDとシート名を抽出する
 // 例: "MySpreadsheet/Sheet1" -> "spreadsheetId", "Sheet1"
 func (gs *GoogleSheets) parseSheetPath(sheetPath string) (string, string, error) {
@@ -246,6 +258,150 @@ func (gs *GoogleSheets) ListSheetsHandler(request ListSheetsRequest) (*mcp.ToolR
 	// 成功レスポンスを返す
 	return mcp.NewToolResponse(
 		mcp.NewTextContent(result.String()),
+	), nil
+}
+
+func (gs *GoogleSheets) AddRowsHandler(request AddRowsRequest) (*mcp.ToolResponse, error) {
+	// シートのパスを解析
+	spreadsheetId, sheetName, err := gs.parseSheetPath(request.Path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse sheet path: %w", err)
+	}
+
+	// 追加する行数が正の値であることを確認
+	if request.Count <= 0 {
+		return nil, fmt.Errorf("count must be a positive number")
+	}
+
+	// シートIDを取得
+	sheetId, err := gs.getSheetId(spreadsheetId, sheetName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get sheet ID: %w", err)
+	}
+
+	// リクエストを作成
+	var batchRequest *sheets.BatchUpdateSpreadsheetRequest
+
+	// StartRowが指定されている場合は、特定の位置に行を挿入
+	if request.StartRow > 0 {
+		batchRequest = &sheets.BatchUpdateSpreadsheetRequest{
+			Requests: []*sheets.Request{
+				{
+					InsertDimension: &sheets.InsertDimensionRequest{
+						Range: &sheets.DimensionRange{
+							SheetId:    sheetId,
+							Dimension:  "ROWS",
+							StartIndex: request.StartRow,
+							EndIndex:   request.StartRow + request.Count,
+						},
+						InheritFromBefore: false,
+					},
+				},
+			},
+		}
+	} else {
+		// 指定がない場合は末尾に追加
+		batchRequest = &sheets.BatchUpdateSpreadsheetRequest{
+			Requests: []*sheets.Request{
+				{
+					AppendDimension: &sheets.AppendDimensionRequest{
+						SheetId:   sheetId,
+						Dimension: "ROWS",
+						Length:    request.Count,
+					},
+				},
+			},
+		}
+	}
+
+	// 行を追加
+	_, err = gs.service.Spreadsheets.BatchUpdate(spreadsheetId, batchRequest).Do()
+	if err != nil {
+		return nil, fmt.Errorf("failed to add rows: %w", err)
+	}
+
+	// 成功メッセージを作成
+	var message string
+	if request.StartRow > 0 {
+		message = fmt.Sprintf("Successfully added %d rows at index %d in sheet '%s'", request.Count, request.StartRow, request.Path)
+	} else {
+		message = fmt.Sprintf("Successfully added %d rows at the end of sheet '%s'", request.Count, request.Path)
+	}
+
+	return mcp.NewToolResponse(
+		mcp.NewTextContent(message),
+	), nil
+}
+
+func (gs *GoogleSheets) AddColumnsHandler(request AddColumnsRequest) (*mcp.ToolResponse, error) {
+	// シートのパスを解析
+	spreadsheetId, sheetName, err := gs.parseSheetPath(request.Path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse sheet path: %w", err)
+	}
+
+	// 追加する列数が正の値であることを確認
+	if request.Count <= 0 {
+		return nil, fmt.Errorf("count must be a positive number")
+	}
+
+	// シートIDを取得
+	sheetId, err := gs.getSheetId(spreadsheetId, sheetName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get sheet ID: %w", err)
+	}
+
+	// リクエストを作成
+	var batchRequest *sheets.BatchUpdateSpreadsheetRequest
+
+	// StartColumnが指定されている場合は、特定の位置に列を挿入
+	if request.StartColumn > 0 {
+		batchRequest = &sheets.BatchUpdateSpreadsheetRequest{
+			Requests: []*sheets.Request{
+				{
+					InsertDimension: &sheets.InsertDimensionRequest{
+						Range: &sheets.DimensionRange{
+							SheetId:    sheetId,
+							Dimension:  "COLUMNS",
+							StartIndex: request.StartColumn,
+							EndIndex:   request.StartColumn + request.Count,
+						},
+						InheritFromBefore: false,
+					},
+				},
+			},
+		}
+	} else {
+		// 指定がない場合は末尾に追加
+		batchRequest = &sheets.BatchUpdateSpreadsheetRequest{
+			Requests: []*sheets.Request{
+				{
+					AppendDimension: &sheets.AppendDimensionRequest{
+						SheetId:   sheetId,
+						Dimension: "COLUMNS",
+						Length:    request.Count,
+					},
+				},
+			},
+		}
+	}
+
+	// 列を追加
+	_, err = gs.service.Spreadsheets.BatchUpdate(spreadsheetId, batchRequest).Do()
+	if err != nil {
+		return nil, fmt.Errorf("failed to add columns: %w", err)
+	}
+
+	// 成功メッセージを作成
+	var message string
+	if request.StartColumn > 0 {
+		message = fmt.Sprintf("Successfully added %d columns at index %d in sheet '%s'", request.Count, request.StartColumn, request.Path)
+	} else {
+		message = fmt.Sprintf("Successfully added %d columns at the end of sheet '%s'", request.Count, request.Path)
+	}
+
+	return mcp.NewToolResponse(
+		mcp.NewTextContent(message),
 	), nil
 }
 

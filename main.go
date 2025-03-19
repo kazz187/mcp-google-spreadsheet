@@ -65,6 +65,14 @@ func main() {
 		logger.ErrorContext(ctx, "failed to register tool get_sheet_data", "error", err)
 		os.Exit(1)
 	}
+	if err := server.RegisterTool("add_rows", "Add rows to sheet in google sheet", sheet.AddRowsHandler); err != nil {
+		logger.ErrorContext(ctx, "failed to register tool add_rows", "error", err)
+		os.Exit(1)
+	}
+	if err := server.RegisterTool("add_columns", "Add columns to sheet in google sheet", sheet.AddColumnsHandler); err != nil {
+		logger.ErrorContext(ctx, "failed to register tool add_columns", "error", err)
+		os.Exit(1)
+	}
 	if err := server.Serve(); err != nil {
 		logger.ErrorContext(ctx, "failed to serve", "error", err)
 		os.Exit(1)
