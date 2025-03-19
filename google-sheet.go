@@ -93,7 +93,12 @@ func (gs *GoogleSheets) parseSheetPath(sheetPath string) (string, string, error)
 
 	// スプレッドシート名からIDを検索
 	query := fmt.Sprintf("'%s' in parents and name = '%s' and mimeType = 'application/vnd.google-apps.spreadsheet' and trashed = false", gs.cfg.FolderID, spreadsheetName)
-	fileList, err := gs.drive.Files.List().Q(query).Fields("files(id, name)").Do()
+	fileList, err := gs.drive.Files.List().
+		Q(query).
+		SupportsAllDrives(true).
+		IncludeItemsFromAllDrives(true).
+		Fields("files(id, name)").
+		Do()
 	if err != nil {
 		return "", "", fmt.Errorf("failed to find spreadsheet: %w", err)
 	}
@@ -110,7 +115,12 @@ func (gs *GoogleSheets) parseSheetPath(sheetPath string) (string, string, error)
 func (gs *GoogleSheets) getSpreadsheetId(spreadsheetName string) (string, error) {
 	// スプレッドシート名からIDを検索
 	query := fmt.Sprintf("'%s' in parents and name = '%s' and mimeType = 'application/vnd.google-apps.spreadsheet' and trashed = false", gs.cfg.FolderID, spreadsheetName)
-	fileList, err := gs.drive.Files.List().Q(query).Fields("files(id, name)").Do()
+	fileList, err := gs.drive.Files.List().
+		Q(query).
+		SupportsAllDrives(true).
+		IncludeItemsFromAllDrives(true).
+		Fields("files(id, name)").
+		Do()
 	if err != nil {
 		return "", fmt.Errorf("failed to find spreadsheet: %w", err)
 	}

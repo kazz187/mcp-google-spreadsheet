@@ -67,20 +67,25 @@ func (gd *GoogleDrive) getFileIDByPath(filePath string) (string, error) {
 
 		// 現在のフォルダ内のファイル/フォルダを検索
 		query := fmt.Sprintf("'%s' in parents and name = '%s' and trashed = false", parentID, part)
-		fileList, err := gd.service.Files.List().Q(query).Fields("files(id, mimeType)").Do()
+		fileList, err := gd.service.Files.List().
+			Q(query).
+			SupportsAllDrives(true).         // 共有ドライブ対応
+			IncludeItemsFromAllDrives(true). // 共有ドライブ対応
+			Fields("files(id, mimeType)").
+			Do()
 		if err != nil {
 			return "", fmt.Errorf("failed to list files: %w", err)
 		}
 
 		if len(fileList.Files) == 0 {
-			// 最後のパス部分で、ファイルが存在しない場合は新規作成の可能性があるため、親フォルダIDを返す
+			// 最後のパス部分で、ファイルが存在しない場合はエラー
 			if isLast {
 				return "", fmt.Errorf("file not found: %s", filePath)
 			}
 			return "", fmt.Errorf("path not found: %s", strings.Join(parts[:i+1], "/"))
 		}
 
-		// 次の親IDを設定
+		// 次の親IDを設定（同名ファイルが複数ある場合は最初のものを使用）
 		parentID = fileList.Files[0].Id
 	}
 
@@ -135,6 +140,8 @@ func (gd *GoogleDrive) ListFilesHandler(request ListFilesRequest) (*mcp.ToolResp
 	query := fmt.Sprintf("'%s' in parents and trashed = false", folderID)
 	fileList, err := gd.service.Files.List().
 		Q(query).
+		SupportsAllDrives(true).         // 共有ドライブ対応
+		IncludeItemsFromAllDrives(true). // 共有ドライブ対応
 		Fields("files(id, name, mimeType, createdTime, modifiedTime, size)").
 		OrderBy("name").
 		Do()
@@ -207,8 +214,11 @@ func (gd *GoogleDrive) CopyFileHandler(request CopyFileRequest) (*mcp.ToolRespon
 		return nil, fmt.Errorf("failed to get source file ID: %w", err)
 	}
 
-	// ソースファイルの情報を取得
-	srcFile, err := gd.service.Files.Get(srcFileID).Fields("name", "mimeType").Do()
+	// ソースファイルの情報を取得（共有ドライブ対応のため supportsAllDrives を追加）
+	srcFile, err := gd.service.Files.Get(srcFileID).
+		SupportsAllDrives(true).
+		Fields("name", "mimeType").
+		Do()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get source file: %w", err)
 	}
@@ -230,7 +240,9 @@ func (gd *GoogleDrive) CopyFileHandler(request CopyFileRequest) (*mcp.ToolRespon
 		Parents: []string{dstParentID},
 	}
 
-	result, err := gd.service.Files.Copy(srcFileID, copiedFile).Do()
+	result, err := gd.service.Files.Copy(srcFileID, copiedFile).
+		SupportsAllDrives(true).
+		Do()
 	if err != nil {
 		return nil, fmt.Errorf("failed to copy file: %w", err)
 	}
@@ -248,8 +260,11 @@ func (gd *GoogleDrive) RenameFileHandler(request RenameFileRequest) (*mcp.ToolRe
 		return nil, fmt.Errorf("failed to get file ID: %w", err)
 	}
 
-	// ファイルの情報を取得して存在確認
-	_, err = gd.service.Files.Get(fileID).Fields("name").Do()
+	// ファイルの情報を取得して存在確認（共有ドライブ対応）
+	_, err = gd.service.Files.Get(fileID).
+		SupportsAllDrives(true).
+		Fields("name").
+		Do()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get file: %w", err)
 	}
@@ -264,8 +279,10 @@ func (gd *GoogleDrive) RenameFileHandler(request RenameFileRequest) (*mcp.ToolRe
 		Name: request.NewName,
 	}
 
-	// ファイル名を変更
-	result, err := gd.service.Files.Update(fileID, updateFile).Do()
+	// ファイル名を変更（共有ドライブ対応）
+	result, err := gd.service.Files.Update(fileID, updateFile).
+		SupportsAllDrives(true).
+		Do()
 	if err != nil {
 		return nil, fmt.Errorf("failed to rename file: %w", err)
 	}
