@@ -22,8 +22,8 @@ require (
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/googleapis/enterprise-certificate-proxy v0.3.5 // indirect
 	github.com/googleapis/gax-go/v2 v2.14.1 // indirect
-	github.com/invopop/jsonschema v0.12.0 // indirect
-	github.com/mailru/easyjson v0.7.7 // indirect
+	github.com/invopop/jsonschema v0.13.0 // indirect
+	github.com/mailru/easyjson v0.9.0 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/tidwall/gjson v1.18.0 // indirect
 	github.com/tidwall/match v1.1.1 // indirect
@@ -44,3 +44,5 @@ require (
 	google.golang.org/protobuf v1.36.5 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
+
+replace github.com/metoro-io/mcp-golang => github.com/verbrio/mcp-golang v0.0.0-20250128155237-94d1d5ad0bfe
