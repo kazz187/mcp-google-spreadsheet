@@ -37,78 +37,55 @@ func NewGoogleSheets(ctx context.Context, cfg *Config, cli *http.Client) (*Googl
 }
 
 type CopySheetRequest struct {
-	SrcName string `json:"src_path" jsonschema:"required,description=source sheet name"`
-	DstName string `json:"dst_path" jsonschema:"required,description=destination sheet name"`
+	SrcSpreadsheetName string `json:"src_spreadsheet" jsonschema:"required,description=source spreadsheet name"`
+	SrcSheetName       string `json:"src_sheet" jsonschema:"required,description=source sheet name"`
+	DstSpreadsheetName string `json:"dst_spreadsheet" jsonschema:"required,description=destination spreadsheet name"`
+	DstSheetName       string `json:"dst_sheet" jsonschema:"required,description=destination sheet name"`
 }
 
 type RenameSheetRequest struct {
-	Path    string `json:"path" jsonschema:"required,description=sheet path"`
-	NewName string `json:"new_name" jsonschema:"required,description=new sheet name"`
+	SpreadsheetName string `json:"spreadsheet" jsonschema:"required,description=spreadsheet name"`
+	SheetName       string `json:"sheet" jsonschema:"required,description=sheet name"`
+	NewName         string `json:"new_name" jsonschema:"required,description=new sheet name"`
 }
 
 type ListSheetsRequest struct {
-	SpreadsheetName string `json:"path" jsonschema:"required,description=spreadsheet name"`
+	SpreadsheetName string `json:"spreadsheet" jsonschema:"required,description=spreadsheet name"`
 }
 
 type GetSheetDataRequest struct {
-	Path  string `json:"path" jsonschema:"required,description=sheet path (format: SpreadsheetName/SheetName)"`
-	Range string `json:"range" jsonschema:"description=cell range (e.g. A1:C10, default: all data)"`
+	SpreadsheetName string `json:"spreadsheet" jsonschema:"required,description=spreadsheet name"`
+	SheetName       string `json:"sheet" jsonschema:"required,description=sheet name"`
+	Range           string `json:"range" jsonschema:"description=cell range (e.g. A1:C10, default: all data)"`
 }
 
 type AddRowsRequest struct {
-	Path     string `json:"path" jsonschema:"required,description=sheet path (format: SpreadsheetName/SheetName)"`
-	Count    int64  `json:"count" jsonschema:"required,description=number of rows to add"`
-	StartRow int64  `json:"start_row" jsonschema:"description=row index to start adding (0-based, default: append to end)"`
+	SpreadsheetName string `json:"spreadsheet" jsonschema:"required,description=spreadsheet name"`
+	SheetName       string `json:"sheet" jsonschema:"required,description=sheet name"`
+	Count           int64  `json:"count" jsonschema:"required,description=number of rows to add"`
+	StartRow        int64  `json:"start_row" jsonschema:"description=row index to start adding (0-based, default: append to end)"`
 }
 
 type AddColumnsRequest struct {
-	Path        string `json:"path" jsonschema:"required,description=sheet path (format: SpreadsheetName/SheetName)"`
-	Count       int64  `json:"count" jsonschema:"required,description=number of columns to add"`
-	StartColumn int64  `json:"start_column" jsonschema:"description=column index to start adding (0-based, default: append to end)"`
+	SpreadsheetName string `json:"spreadsheet" jsonschema:"required,description=spreadsheet name"`
+	SheetName       string `json:"sheet" jsonschema:"required,description=sheet name"`
+	Count           int64  `json:"count" jsonschema:"required,description=number of columns to add"`
+	StartColumn     int64  `json:"start_column" jsonschema:"description=column index to start adding (0-based, default: append to end)"`
 }
 
 // セル編集リクエスト
 type UpdateCellsRequest struct {
-	Path  string          `json:"path" jsonschema:"required,description=sheet path (format: SpreadsheetName/SheetName)"`
-	Range string          `json:"range" jsonschema:"required,description=cell range (e.g. A1:C10)"`
-	Data  [][]interface{} `json:"data" jsonschema:"required,description=2D array of cell values to update"`
+	SpreadsheetName string          `json:"spreadsheet" jsonschema:"required,description=spreadsheet name"`
+	SheetName       string          `json:"sheet" jsonschema:"required,description=sheet name"`
+	Range           string          `json:"range" jsonschema:"required,description=cell range (e.g. A1:C10)"`
+	Data            [][]interface{} `json:"data" jsonschema:"required,description=2D array of cell values to update"`
 }
 
 // 複数範囲のセル編集リクエスト
 type BatchUpdateCellsRequest struct {
-	Path   string                     `json:"path" jsonschema:"required,description=sheet path (format: SpreadsheetName/SheetName)"`
-	Ranges map[string][][]interface{} `json:"ranges" jsonschema:"required,description=map of range to 2D array of cell values (e.g. {'A1:B2': [[1, 2], [3, 4]], 'D5:E6': [[5, 6], [7, 8]]})"`
-}
-
-// パスからスプレッドシートIDとシート名を抽出する
-// 例: "MySpreadsheet/Sheet1" -> "spreadsheetId", "Sheet1"
-func (gs *GoogleSheets) parseSheetPath(sheetPath string) (string, string, error) {
-	parts := strings.Split(sheetPath, "/")
-	if len(parts) != 2 {
-		return "", "", fmt.Errorf("invalid sheet path format: %s (expected format: 'SpreadsheetName/SheetName')", sheetPath)
-	}
-
-	spreadsheetName := parts[0]
-	sheetName := parts[1]
-
-	// スプレッドシート名からIDを検索
-	query := fmt.Sprintf("'%s' in parents and name = '%s' and mimeType = 'application/vnd.google-apps.spreadsheet' and trashed = false", gs.cfg.FolderID, spreadsheetName)
-	fileList, err := gs.drive.Files.List().
-		Q(query).
-		SupportsAllDrives(true).
-		IncludeItemsFromAllDrives(true).
-		Fields("files(id, name)").
-		Do()
-	if err != nil {
-		return "", "", fmt.Errorf("failed to find spreadsheet: %w", err)
-	}
-
-	if len(fileList.Files) == 0 {
-		return "", "", fmt.Errorf("spreadsheet not found: %s", spreadsheetName)
-	}
-
-	spreadsheetId := fileList.Files[0].Id
-	return spreadsheetId, sheetName, nil
+	SpreadsheetName string                     `json:"spreadsheet" jsonschema:"required,description=spreadsheet name"`
+	SheetName       string                     `json:"sheet" jsonschema:"required,description=sheet name"`
+	Ranges          map[string][][]interface{} `json:"ranges" jsonschema:"required,description=map of range to 2D array of cell values (e.g. {'A1:B2': [[1, 2], [3, 4]], 'D5:E6': [[5, 6], [7, 8]]})"`
 }
 
 // スプレッドシート名からスプレッドシートIDを取得する
@@ -151,17 +128,20 @@ func (gs *GoogleSheets) getSheetId(spreadsheetId string, sheetName string) (int6
 }
 
 func (gs *GoogleSheets) CopySheetHandler(request CopySheetRequest) (*mcp.ToolResponse, error) {
-	// ソースシートのパスを解析
-	srcSpreadsheetId, srcSheetName, err := gs.parseSheetPath(request.SrcName)
+	// ソーススプレッドシートのIDを取得
+	srcSpreadsheetId, err := gs.getSpreadsheetId(request.SrcSpreadsheetName)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse source sheet path: %w", err)
+		return nil, fmt.Errorf("failed to get source spreadsheet ID: %w", err)
 	}
 
-	// 宛先シートのパスを解析
-	dstSpreadsheetId, dstSheetName, err := gs.parseSheetPath(request.DstName)
+	// 宛先スプレッドシートのIDを取得
+	dstSpreadsheetId, err := gs.getSpreadsheetId(request.DstSpreadsheetName)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse destination sheet path: %w", err)
+		return nil, fmt.Errorf("failed to get destination spreadsheet ID: %w", err)
 	}
+
+	srcSheetName := request.SrcSheetName
+	dstSheetName := request.DstSheetName
 
 	// ソースシートのIDを取得
 	srcSheetId, err := gs.getSheetId(srcSpreadsheetId, srcSheetName)
@@ -205,16 +185,20 @@ func (gs *GoogleSheets) CopySheetHandler(request CopySheetRequest) (*mcp.ToolRes
 	}
 
 	return mcp.NewToolResponse(
-		mcp.NewTextContent(fmt.Sprintf("Sheet '%s' successfully copied to '%s'", request.SrcName, request.DstName)),
+		mcp.NewTextContent(fmt.Sprintf("Sheet '%s' in spreadsheet '%s' successfully copied to sheet '%s' in spreadsheet '%s'",
+			request.SrcSheetName, request.SrcSpreadsheetName,
+			request.DstSheetName, request.DstSpreadsheetName)),
 	), nil
 }
 
 func (gs *GoogleSheets) RenameSheetHandler(request RenameSheetRequest) (*mcp.ToolResponse, error) {
-	// シートのパスを解析
-	spreadsheetId, sheetName, err := gs.parseSheetPath(request.Path)
+	// スプレッドシートIDを取得
+	spreadsheetId, err := gs.getSpreadsheetId(request.SpreadsheetName)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse sheet path: %w", err)
+		return nil, fmt.Errorf("failed to get spreadsheet ID: %w", err)
 	}
+
+	sheetName := request.SheetName
 
 	// 新しい名前が空でないことを確認
 	if request.NewName == "" {
@@ -249,7 +233,8 @@ func (gs *GoogleSheets) RenameSheetHandler(request RenameSheetRequest) (*mcp.Too
 	}
 
 	return mcp.NewToolResponse(
-		mcp.NewTextContent(fmt.Sprintf("Sheet '%s' successfully renamed to '%s'", request.Path, request.NewName)),
+		mcp.NewTextContent(fmt.Sprintf("Sheet '%s' in spreadsheet '%s' successfully renamed to '%s'",
+			request.SheetName, request.SpreadsheetName, request.NewName)),
 	), nil
 }
 
@@ -285,11 +270,13 @@ func (gs *GoogleSheets) ListSheetsHandler(request ListSheetsRequest) (*mcp.ToolR
 }
 
 func (gs *GoogleSheets) AddRowsHandler(request AddRowsRequest) (*mcp.ToolResponse, error) {
-	// シートのパスを解析
-	spreadsheetId, sheetName, err := gs.parseSheetPath(request.Path)
+	// スプレッドシートIDを取得
+	spreadsheetId, err := gs.getSpreadsheetId(request.SpreadsheetName)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse sheet path: %w", err)
+		return nil, fmt.Errorf("failed to get spreadsheet ID: %w", err)
 	}
+
+	sheetName := request.SheetName
 
 	// 追加する行数が正の値であることを確認
 	if request.Count <= 0 {
@@ -346,9 +333,11 @@ func (gs *GoogleSheets) AddRowsHandler(request AddRowsRequest) (*mcp.ToolRespons
 	// 成功メッセージを作成
 	var message string
 	if request.StartRow > 0 {
-		message = fmt.Sprintf("Successfully added %d rows at index %d in sheet '%s'", request.Count, request.StartRow, request.Path)
+		message = fmt.Sprintf("Successfully added %d rows at index %d in sheet '%s' of spreadsheet '%s'",
+			request.Count, request.StartRow, request.SheetName, request.SpreadsheetName)
 	} else {
-		message = fmt.Sprintf("Successfully added %d rows at the end of sheet '%s'", request.Count, request.Path)
+		message = fmt.Sprintf("Successfully added %d rows at the end of sheet '%s' of spreadsheet '%s'",
+			request.Count, request.SheetName, request.SpreadsheetName)
 	}
 
 	return mcp.NewToolResponse(
@@ -357,11 +346,13 @@ func (gs *GoogleSheets) AddRowsHandler(request AddRowsRequest) (*mcp.ToolRespons
 }
 
 func (gs *GoogleSheets) AddColumnsHandler(request AddColumnsRequest) (*mcp.ToolResponse, error) {
-	// シートのパスを解析
-	spreadsheetId, sheetName, err := gs.parseSheetPath(request.Path)
+	// スプレッドシートIDを取得
+	spreadsheetId, err := gs.getSpreadsheetId(request.SpreadsheetName)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse sheet path: %w", err)
+		return nil, fmt.Errorf("failed to get spreadsheet ID: %w", err)
 	}
+
+	sheetName := request.SheetName
 
 	// 追加する列数が正の値であることを確認
 	if request.Count <= 0 {
@@ -418,9 +409,11 @@ func (gs *GoogleSheets) AddColumnsHandler(request AddColumnsRequest) (*mcp.ToolR
 	// 成功メッセージを作成
 	var message string
 	if request.StartColumn > 0 {
-		message = fmt.Sprintf("Successfully added %d columns at index %d in sheet '%s'", request.Count, request.StartColumn, request.Path)
+		message = fmt.Sprintf("Successfully added %d columns at index %d in sheet '%s' of spreadsheet '%s'",
+			request.Count, request.StartColumn, request.SheetName, request.SpreadsheetName)
 	} else {
-		message = fmt.Sprintf("Successfully added %d columns at the end of sheet '%s'", request.Count, request.Path)
+		message = fmt.Sprintf("Successfully added %d columns at the end of sheet '%s' of spreadsheet '%s'",
+			request.Count, request.SheetName, request.SpreadsheetName)
 	}
 
 	return mcp.NewToolResponse(
@@ -430,11 +423,13 @@ func (gs *GoogleSheets) AddColumnsHandler(request AddColumnsRequest) (*mcp.ToolR
 
 // 単一範囲のセル編集ハンドラー
 func (gs *GoogleSheets) UpdateCellsHandler(request UpdateCellsRequest) (*mcp.ToolResponse, error) {
-	// シートのパスを解析
-	spreadsheetId, sheetName, err := gs.parseSheetPath(request.Path)
+	// スプレッドシートIDを取得
+	spreadsheetId, err := gs.getSpreadsheetId(request.SpreadsheetName)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse sheet path: %w", err)
+		return nil, fmt.Errorf("failed to get spreadsheet ID: %w", err)
 	}
+
+	sheetName := request.SheetName
 
 	// 範囲が指定されていることを確認
 	if request.Range == "" {
@@ -463,8 +458,8 @@ func (gs *GoogleSheets) UpdateCellsHandler(request UpdateCellsRequest) (*mcp.Too
 	}
 
 	// 成功メッセージを作成
-	message := fmt.Sprintf("Successfully updated %d cells in range '%s' of sheet '%s'",
-		updateResponse.UpdatedCells, request.Range, request.Path)
+	message := fmt.Sprintf("Successfully updated %d cells in range '%s' of sheet '%s' in spreadsheet '%s'",
+		updateResponse.UpdatedCells, request.Range, request.SheetName, request.SpreadsheetName)
 
 	return mcp.NewToolResponse(
 		mcp.NewTextContent(message),
@@ -473,11 +468,13 @@ func (gs *GoogleSheets) UpdateCellsHandler(request UpdateCellsRequest) (*mcp.Too
 
 // 複数範囲のセル一括編集ハンドラー
 func (gs *GoogleSheets) BatchUpdateCellsHandler(request BatchUpdateCellsRequest) (*mcp.ToolResponse, error) {
-	// シートのパスを解析
-	spreadsheetId, sheetName, err := gs.parseSheetPath(request.Path)
+	// スプレッドシートIDを取得
+	spreadsheetId, err := gs.getSpreadsheetId(request.SpreadsheetName)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse sheet path: %w", err)
+		return nil, fmt.Errorf("failed to get spreadsheet ID: %w", err)
 	}
+
+	sheetName := request.SheetName
 
 	// 範囲が指定されていることを確認
 	if len(request.Ranges) == 0 {
@@ -518,8 +515,9 @@ func (gs *GoogleSheets) BatchUpdateCellsHandler(request BatchUpdateCellsRequest)
 	}
 
 	// 成功メッセージを作成
-	message := fmt.Sprintf("Successfully updated %d cells across %d ranges in sheet '%s'",
-		batchUpdateResponse.TotalUpdatedCells, batchUpdateResponse.TotalUpdatedSheets, request.Path)
+	message := fmt.Sprintf("Successfully updated %d cells across %d ranges in sheet '%s' in spreadsheet '%s'",
+		batchUpdateResponse.TotalUpdatedCells, batchUpdateResponse.TotalUpdatedSheets,
+		request.SheetName, request.SpreadsheetName)
 
 	return mcp.NewToolResponse(
 		mcp.NewTextContent(message),
@@ -527,11 +525,13 @@ func (gs *GoogleSheets) BatchUpdateCellsHandler(request BatchUpdateCellsRequest)
 }
 
 func (gs *GoogleSheets) GetSheetDataHandler(request GetSheetDataRequest) (*mcp.ToolResponse, error) {
-	// シートのパスを解析
-	spreadsheetId, sheetName, err := gs.parseSheetPath(request.Path)
+	// スプレッドシートIDを取得
+	spreadsheetId, err := gs.getSpreadsheetId(request.SpreadsheetName)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse sheet path: %w", err)
+		return nil, fmt.Errorf("failed to get spreadsheet ID: %w", err)
 	}
+
+	sheetName := request.SheetName
 
 	// 範囲が指定されていない場合はシート全体を取得
 	range_ := sheetName
@@ -547,7 +547,8 @@ func (gs *GoogleSheets) GetSheetDataHandler(request GetSheetDataRequest) (*mcp.T
 
 	// 結果を整形
 	var result strings.Builder
-	result.WriteString(fmt.Sprintf("Data from sheet '%s'", request.Path))
+	result.WriteString(fmt.Sprintf("Data from sheet '%s' in spreadsheet '%s'",
+		request.SheetName, request.SpreadsheetName))
 	if request.Range != "" {
 		result.WriteString(fmt.Sprintf(" (range: %s)", request.Range))
 	}
