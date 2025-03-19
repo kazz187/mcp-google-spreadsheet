@@ -67,6 +67,19 @@ type AddColumnsRequest struct {
 	StartColumn int64  `json:"start_column" jsonschema:"description=column index to start adding (0-based, default: append to end)"`
 }
 
+// セル編集リクエスト
+type UpdateCellsRequest struct {
+	Path  string          `json:"path" jsonschema:"required,description=sheet path (format: SpreadsheetName/SheetName)"`
+	Range string          `json:"range" jsonschema:"required,description=cell range (e.g. A1:C10)"`
+	Data  [][]interface{} `json:"data" jsonschema:"required,description=2D array of cell values to update"`
+}
+
+// 複数範囲のセル編集リクエスト
+type BatchUpdateCellsRequest struct {
+	Path   string                     `json:"path" jsonschema:"required,description=sheet path (format: SpreadsheetName/SheetName)"`
+	Ranges map[string][][]interface{} `json:"ranges" jsonschema:"required,description=map of range to 2D array of cell values (e.g. {'A1:B2': [[1, 2], [3, 4]], 'D5:E6': [[5, 6], [7, 8]]})"`
+}
+
 // パスからスプレッドシートIDとシート名を抽出する
 // 例: "MySpreadsheet/Sheet1" -> "spreadsheetId", "Sheet1"
 func (gs *GoogleSheets) parseSheetPath(sheetPath string) (string, string, error) {
@@ -399,6 +412,104 @@ func (gs *GoogleSheets) AddColumnsHandler(request AddColumnsRequest) (*mcp.ToolR
 	} else {
 		message = fmt.Sprintf("Successfully added %d columns at the end of sheet '%s'", request.Count, request.Path)
 	}
+
+	return mcp.NewToolResponse(
+		mcp.NewTextContent(message),
+	), nil
+}
+
+// 単一範囲のセル編集ハンドラー
+func (gs *GoogleSheets) UpdateCellsHandler(request UpdateCellsRequest) (*mcp.ToolResponse, error) {
+	// シートのパスを解析
+	spreadsheetId, sheetName, err := gs.parseSheetPath(request.Path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse sheet path: %w", err)
+	}
+
+	// 範囲が指定されていることを確認
+	if request.Range == "" {
+		return nil, fmt.Errorf("range must be specified")
+	}
+
+	// データが空でないことを確認
+	if len(request.Data) == 0 {
+		return nil, fmt.Errorf("data cannot be empty")
+	}
+
+	// 範囲を完全な形式に変換（シート名を含む）
+	fullRange := fmt.Sprintf("%s!%s", sheetName, request.Range)
+
+	// 値を更新するリクエストを作成
+	valueRange := &sheets.ValueRange{
+		Range:  fullRange,
+		Values: request.Data,
+	}
+
+	// 値を更新
+	updateResponse, err := gs.service.Spreadsheets.Values.Update(
+		spreadsheetId, fullRange, valueRange).ValueInputOption("USER_ENTERED").Do()
+	if err != nil {
+		return nil, fmt.Errorf("failed to update cells: %w", err)
+	}
+
+	// 成功メッセージを作成
+	message := fmt.Sprintf("Successfully updated %d cells in range '%s' of sheet '%s'",
+		updateResponse.UpdatedCells, request.Range, request.Path)
+
+	return mcp.NewToolResponse(
+		mcp.NewTextContent(message),
+	), nil
+}
+
+// 複数範囲のセル一括編集ハンドラー
+func (gs *GoogleSheets) BatchUpdateCellsHandler(request BatchUpdateCellsRequest) (*mcp.ToolResponse, error) {
+	// シートのパスを解析
+	spreadsheetId, sheetName, err := gs.parseSheetPath(request.Path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse sheet path: %w", err)
+	}
+
+	// 範囲が指定されていることを確認
+	if len(request.Ranges) == 0 {
+		return nil, fmt.Errorf("ranges cannot be empty")
+	}
+
+	// バッチ更新用のデータを作成
+	var data []*sheets.ValueRange
+	for rangeStr, values := range request.Ranges {
+		// データが空でないことを確認
+		if len(values) == 0 {
+			return nil, fmt.Errorf("data for range '%s' cannot be empty", rangeStr)
+		}
+
+		// 範囲を完全な形式に変換（シート名を含む）
+		fullRange := fmt.Sprintf("%s!%s", sheetName, rangeStr)
+
+		// ValueRangeを作成
+		valueRange := &sheets.ValueRange{
+			Range:  fullRange,
+			Values: values,
+		}
+
+		data = append(data, valueRange)
+	}
+
+	// バッチ更新リクエストを作成
+	batchUpdateRequest := &sheets.BatchUpdateValuesRequest{
+		ValueInputOption: "USER_ENTERED",
+		Data:             data,
+	}
+
+	// バッチ更新を実行
+	batchUpdateResponse, err := gs.service.Spreadsheets.Values.BatchUpdate(
+		spreadsheetId, batchUpdateRequest).Do()
+	if err != nil {
+		return nil, fmt.Errorf("failed to batch update cells: %w", err)
+	}
+
+	// 成功メッセージを作成
+	message := fmt.Sprintf("Successfully updated %d cells across %d ranges in sheet '%s'",
+		batchUpdateResponse.TotalUpdatedCells, batchUpdateResponse.TotalUpdatedSheets, request.Path)
 
 	return mcp.NewToolResponse(
 		mcp.NewTextContent(message),

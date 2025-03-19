@@ -73,6 +73,14 @@ func main() {
 		logger.ErrorContext(ctx, "failed to register tool add_columns", "error", err)
 		os.Exit(1)
 	}
+	if err := server.RegisterTool("update_cells", "Update cells in google sheet", sheet.UpdateCellsHandler); err != nil {
+		logger.ErrorContext(ctx, "failed to register tool update_cells", "error", err)
+		os.Exit(1)
+	}
+	if err := server.RegisterTool("batch_update_cells", "Batch update cells in google sheet", sheet.BatchUpdateCellsHandler); err != nil {
+		logger.ErrorContext(ctx, "failed to register tool batch_update_cells", "error", err)
+		os.Exit(1)
+	}
 	if err := server.Serve(); err != nil {
 		logger.ErrorContext(ctx, "failed to serve", "error", err)
 		os.Exit(1)
