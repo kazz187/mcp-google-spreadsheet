@@ -10,6 +10,7 @@ const envPrefix = "GSUITE"
 
 type Config struct {
 	ClientSecretPath string `envconfig:"CLIENT_SECRET_PATH"`
+	TokenPath        string `envconfig:"TOKEN_PATH"`
 	FolderID         string `envconfig:"FOLDER_ID"`
 }
 

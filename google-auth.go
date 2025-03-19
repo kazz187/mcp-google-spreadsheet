@@ -32,26 +32,29 @@ func (g *GoogleAuth) AuthClient(ctx context.Context) (*http.Client, error) {
 		return nil, fmt.Errorf("unable to parse client secret file to config: %v", err)
 	}
 
-	client, err := getClient(ctx, gCfg)
+	client, err := g.getClient(ctx, gCfg)
 	return client, nil
 }
 
 // 認証情報を取得し、HTTP クライアントを作成
-func getClient(ctx context.Context, config *oauth2.Config) (*http.Client, error) {
+func (g *GoogleAuth) getClient(ctx context.Context, config *oauth2.Config) (*http.Client, error) {
 	// ローカルにトークンが保存されていれば、それを使う
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get user home directory: %v", err)
+	tokenPath := g.cfg.TokenPath
+	if tokenPath == "" {
+		homeDir, err := os.UserHomeDir()
+		if err != nil {
+			return nil, fmt.Errorf("failed to get user home directory: %v", err)
+		}
+		tokenPath = homeDir + "/.mcp_google_spreadsheet.json"
 	}
-	tokFile := homeDir + "/.mcp_google_spreadsheet.json"
-	tok, err := tokenFromFile(tokFile)
+	tok, err := tokenFromFile(tokenPath)
 	if err != nil {
 		// トークンがない場合、新しく取得する
 		tok, err := getTokenFromWeb(config)
 		if err != nil {
 			return nil, fmt.Errorf("unable to get token: %v", err)
 		}
-		if err := saveToken(tokFile, tok); err != nil {
+		if err := saveToken(tokenPath, tok); err != nil {
 			return nil, fmt.Errorf("unable to save token: %v", err)
 		}
 	}
