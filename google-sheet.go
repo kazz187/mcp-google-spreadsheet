@@ -50,6 +50,11 @@ type ListSheetsRequest struct {
 	SpreadsheetName string `json:"path" jsonschema:"required,description=spreadsheet name"`
 }
 
+type GetSheetDataRequest struct {
+	Path  string `json:"path" jsonschema:"required,description=sheet path (format: SpreadsheetName/SheetName)"`
+	Range string `json:"range" jsonschema:"description=cell range (e.g. A1:C10, default: all data)"`
+}
+
 // パスからスプレッドシートIDとシート名を抽出する
 // 例: "MySpreadsheet/Sheet1" -> "spreadsheetId", "Sheet1"
 func (gs *GoogleSheets) parseSheetPath(sheetPath string) (string, string, error) {
@@ -237,6 +242,67 @@ func (gs *GoogleSheets) ListSheetsHandler(request ListSheetsRequest) (*mcp.ToolR
 
 	// 合計数
 	result.WriteString(fmt.Sprintf("\nTotal: %d sheets\n", len(spreadsheet.Sheets)))
+
+	// 成功レスポンスを返す
+	return mcp.NewToolResponse(
+		mcp.NewTextContent(result.String()),
+	), nil
+}
+
+func (gs *GoogleSheets) GetSheetDataHandler(request GetSheetDataRequest) (*mcp.ToolResponse, error) {
+	// シートのパスを解析
+	spreadsheetId, sheetName, err := gs.parseSheetPath(request.Path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse sheet path: %w", err)
+	}
+
+	// 範囲が指定されていない場合はシート全体を取得
+	range_ := sheetName
+	if request.Range != "" {
+		range_ = fmt.Sprintf("%s!%s", sheetName, request.Range)
+	}
+
+	// シートデータを取得
+	resp, err := gs.service.Spreadsheets.Values.Get(spreadsheetId, range_).Do()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get sheet data: %w", err)
+	}
+
+	// 結果を整形
+	var result strings.Builder
+	result.WriteString(fmt.Sprintf("Data from sheet '%s'", request.Path))
+	if request.Range != "" {
+		result.WriteString(fmt.Sprintf(" (range: %s)", request.Range))
+	}
+	result.WriteString(":\n\n")
+
+	// データがない場合
+	if len(resp.Values) == 0 {
+		result.WriteString("No data found.")
+		return mcp.NewToolResponse(
+			mcp.NewTextContent(result.String()),
+		), nil
+	}
+
+	// 各行のデータを表示
+	for i, row := range resp.Values {
+		result.WriteString(fmt.Sprintf("Row %d: ", i+1))
+		for j, cell := range row {
+			if j > 0 {
+				result.WriteString(" | ")
+			}
+			result.WriteString(fmt.Sprintf("%v", cell))
+		}
+		result.WriteString("\n")
+	}
+
+	// 行と列の数を表示
+	rowCount := len(resp.Values)
+	colCount := 0
+	if rowCount > 0 {
+		colCount = len(resp.Values[0])
+	}
+	result.WriteString(fmt.Sprintf("\nTotal: %d rows x %d columns\n", rowCount, colCount))
 
 	// 成功レスポンスを返す
 	return mcp.NewToolResponse(

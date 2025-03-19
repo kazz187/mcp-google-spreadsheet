@@ -61,6 +61,10 @@ func main() {
 		logger.ErrorContext(ctx, "failed to register tool list_sheets", "error", err)
 		os.Exit(1)
 	}
+	if err := server.RegisterTool("get_sheet_data", "Get data from sheet in google sheet", sheet.GetSheetDataHandler); err != nil {
+		logger.ErrorContext(ctx, "failed to register tool get_sheet_data", "error", err)
+		os.Exit(1)
+	}
 	if err := server.Serve(); err != nil {
 		logger.ErrorContext(ctx, "failed to serve", "error", err)
 		os.Exit(1)
