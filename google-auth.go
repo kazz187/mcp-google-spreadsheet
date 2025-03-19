@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -28,14 +29,17 @@ func NewGoogleAuth(cfg *Config) *GoogleAuth {
 func (g *GoogleAuth) AuthClient(ctx context.Context) (*http.Client, error) {
 	b, err := os.ReadFile(g.cfg.ClientSecretPath)
 	if err != nil {
-		return nil, fmt.Errorf("could not read client secret file: %v", err)
+		return nil, fmt.Errorf("could not read client id file: %w", err)
 	}
 	gCfg, err := google.ConfigFromJSON(b, sheets.DriveScope, sheets.SpreadsheetsScope)
 	if err != nil {
-		return nil, fmt.Errorf("unable to parse client secret file to config: %v", err)
+		return nil, fmt.Errorf("unable to parse client id file to config: %w", err)
 	}
 
 	client, err := g.getClient(ctx, gCfg)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get client: %w", err)
+	}
 	return client, nil
 }
 
@@ -46,26 +50,26 @@ func (g *GoogleAuth) getClient(ctx context.Context, config *oauth2.Config) (*htt
 	if tokenPath == "" {
 		homeDir, err := os.UserHomeDir()
 		if err != nil {
-			return nil, fmt.Errorf("failed to get user home directory: %v", err)
+			return nil, fmt.Errorf("failed to get user home directory: %w", err)
 		}
 		tokenPath = homeDir + "/.mcp_google_spreadsheet.json"
 	}
 	tok, err := tokenFromFile(tokenPath)
 	if err != nil {
 		// トークンがない場合、新しく取得する
-		tok, err := getTokenFromWeb(config)
+		tok, err := getTokenFromWeb(ctx, config)
 		if err != nil {
-			return nil, fmt.Errorf("unable to get token: %v", err)
+			return nil, fmt.Errorf("unable to get token: %w", err)
 		}
 		if err := saveToken(tokenPath, tok); err != nil {
-			return nil, fmt.Errorf("unable to save token: %v", err)
+			return nil, fmt.Errorf("unable to save token: %w", err)
 		}
 	}
 	return config.Client(ctx, tok), nil
 }
 
 // ブラウザで認証し、認証コードを取得
-func getTokenFromWeb(config *oauth2.Config) (*oauth2.Token, error) {
+func getTokenFromWeb(ctx context.Context, config *oauth2.Config) (*oauth2.Token, error) {
 	// localhost でリダイレクトを受け取るように設定
 	config.RedirectURL = "http://localhost:8080/oauth2callback"
 
@@ -116,31 +120,30 @@ func getTokenFromWeb(config *oauth2.Config) (*oauth2.Token, error) {
 
 	// サーバーを別のゴルーチンで起動
 	go func() {
-		if err := server.ListenAndServe(); err != http.ErrServerClosed {
+		if err := server.ListenAndServe(); !errors.Is(err, http.ErrServerClosed) {
 			errCh <- err
 		}
 	}()
 
-	// 認証URLを生成
 	authURL := config.AuthCodeURL("state-token", oauth2.AccessTypeOffline)
 
 	// ブラウザを自動的に開く
-	fmt.Printf("Opening browser for authentication: %v\n", authURL)
+	fmt.Printf("Opening browser for authentication: %s\n", authURL)
 	if err := openBrowser(authURL); err != nil {
-		fmt.Printf("Could not open browser automatically. Please open the following URL in your browser: \n%v\n", authURL)
+		fmt.Printf("Could not open browser automatically. Please open the following URL in your browser: \n%s\n", authURL)
 	}
 
 	// コードまたはエラーを待つ
 	select {
 	case code := <-codeCh:
 		// 認証コードを使ってアクセストークンを取得
-		tok, err := config.Exchange(context.Background(), code)
+		tok, err := config.Exchange(ctx, code)
 		if err != nil {
-			return nil, fmt.Errorf("failed to exchange authorization code: %v", err)
+			return nil, fmt.Errorf("failed to exchange authorization code: %w", err)
 		}
 		return tok, nil
 	case err := <-errCh:
-		return nil, fmt.Errorf("error during authentication process: %v", err)
+		return nil, fmt.Errorf("error during authentication process: %w", err)
 	case <-time.After(2 * time.Minute):
 		return nil, fmt.Errorf("authentication timed out")
 	}
@@ -180,11 +183,11 @@ func tokenFromFile(file string) (*oauth2.Token, error) {
 func saveToken(file string, token *oauth2.Token) error {
 	f, err := os.Create(file)
 	if err != nil {
-		return fmt.Errorf("failed creating token file: %v", err)
+		return fmt.Errorf("failed creating token file: %w", err)
 	}
 	defer f.Close()
 	if err := json.NewEncoder(f).Encode(token); err != nil {
-		return fmt.Errorf("failed encoding token: %v", err)
+		return fmt.Errorf("failed encoding token: %w", err)
 	}
 	return nil
 }

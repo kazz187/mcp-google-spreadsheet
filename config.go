@@ -6,7 +6,7 @@ import (
 	"github.com/kelseyhightower/envconfig"
 )
 
-const envPrefix = "GSUITE"
+const envPrefix = "MCPGS"
 
 type Config struct {
 	ClientSecretPath string `envconfig:"CLIENT_SECRET_PATH"`

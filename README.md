@@ -40,9 +40,9 @@ go install github.com/kazz187/mcp-google-spreadsheet@latest
 
 以下の環境変数を設定する必要があります：
 
-- `GSUITE_CLIENT_SECRET_PATH`: Google API のクライアントシークレットファイルのパス
-- `GSUITE_TOKEN_PATH`: Google API のトークンファイルのパス（存在しない場合は自動的に作成されます）
-- `GSUITE_FOLDER_ID`: 操作対象とする Google Drive のフォルダ ID
+- `MCPGS_CLIENT_SECRET_PATH`: Google API のクライアントシークレットファイルのパス (https://developers.google.com/identity/protocols/oauth2/native-app?hl=ja)
+- `MCPGS_TOKEN_PATH`: Google API のトークンファイルのパス（存在しない場合は自動的に作成されます）
+- `MCPGS_FOLDER_ID`: 操作対象とする Google Drive のフォルダ ID
 
 ### Google API の設定手順
 
@@ -57,9 +57,9 @@ go install github.com/kazz187/mcp-google-spreadsheet@latest
 ### 起動
 
 ```bash
-export GSUITE_CLIENT_SECRET_PATH=/path/to/client_secret.json
-export GSUITE_TOKEN_PATH=/path/to/token.json
-export GSUITE_FOLDER_ID=your_folder_id
+export MCPGS_CLIENT_SECRET_PATH=/path/to/client_secret.json
+export MCPGS_TOKEN_PATH=/path/to/token.json
+export MCPGS_FOLDER_ID=your_folder_id
 mcp-google-spreadsheet
 ```
 
@@ -78,9 +78,9 @@ Claude や ChatGPT などの AI アシスタントで使用するには、MCP �
       "command": "mcp-google-spreadsheet",
       "args": [],
       "env": {
-        "GSUITE_CLIENT_SECRET_PATH": "/path/to/client_secret.json",
-        "GSUITE_TOKEN_PATH": "/path/to/token.json",
-        "GSUITE_FOLDER_ID": "your_folder_id"
+        "MCPGS_CLIENT_SECRET_PATH": "/path/to/client_secret.json",
+        "MCPGS_TOKEN_PATH": "/path/to/token.json",
+        "MCPGS_FOLDER_ID": "your_folder_id"
       }
     }
   }
