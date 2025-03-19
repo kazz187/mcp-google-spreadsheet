@@ -49,6 +49,10 @@ func main() {
 		logger.ErrorContext(ctx, "failed to register tool copy_sheet", "error", err)
 		os.Exit(1)
 	}
+	if err := server.RegisterTool("rename_file", "Rename file in google drive", drive.RenameFileHandler); err != nil {
+		logger.ErrorContext(ctx, "failed to register tool rename_file", "error", err)
+		os.Exit(1)
+	}
 	if err := server.Serve(); err != nil {
 		logger.ErrorContext(ctx, "failed to serve", "error", err)
 		os.Exit(1)

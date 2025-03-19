@@ -37,6 +37,11 @@ type CopyFileRequest struct {
 	DstPath string `json:"dst_path" jsonschema:"required,description=destination path"`
 }
 
+type RenameFileRequest struct {
+	Path    string `json:"path" jsonschema:"required,description=file path"`
+	NewName string `json:"new_name" jsonschema:"required,description=new file name"`
+}
+
 // パスからファイルIDを取得する
 func (gd *GoogleDrive) getFileIDByPath(filePath string) (string, error) {
 	// パスの正規化と検証
@@ -233,5 +238,40 @@ func (gd *GoogleDrive) CopyFileHandler(request CopyFileRequest) (*mcp.ToolRespon
 	// 成功レスポンスを返す
 	return mcp.NewToolResponse(
 		mcp.NewTextContent(fmt.Sprintf("File copied successfully. New file ID: %s", result.Id)),
+	), nil
+}
+
+func (gd *GoogleDrive) RenameFileHandler(request RenameFileRequest) (*mcp.ToolResponse, error) {
+	// ファイルのIDを取得
+	fileID, err := gd.getFileIDByPath(request.Path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get file ID: %w", err)
+	}
+
+	// ファイルの情報を取得して存在確認
+	_, err = gd.service.Files.Get(fileID).Fields("name").Do()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get file: %w", err)
+	}
+
+	// 新しい名前が空でないことを確認
+	if request.NewName == "" {
+		return nil, fmt.Errorf("new file name cannot be empty")
+	}
+
+	// ファイル名を更新
+	updateFile := &drive.File{
+		Name: request.NewName,
+	}
+
+	// ファイル名を変更
+	result, err := gd.service.Files.Update(fileID, updateFile).Do()
+	if err != nil {
+		return nil, fmt.Errorf("failed to rename file: %w", err)
+	}
+
+	// 成功レスポンスを返す
+	return mcp.NewToolResponse(
+		mcp.NewTextContent(fmt.Sprintf("File renamed successfully to '%s'", result.Name)),
 	), nil
 }
