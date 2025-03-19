@@ -28,6 +28,10 @@ func NewGoogleDrive(ctx context.Context, cfg *Config, client *http.Client) (*Goo
 	}, nil
 }
 
+type ListFilesRequest struct {
+	Path string `json:"path" jsonschema:"description=directory path (default: root directory)"`
+}
+
 type CopyFileRequest struct {
 	SrcPath string `json:"src_path" jsonschema:"required,description=source path"`
 	DstPath string `json:"dst_path" jsonschema:"required,description=destination path"`
@@ -107,6 +111,88 @@ func (gd *GoogleDrive) getParentIDAndFileName(filePath string) (string, string, 
 	}
 
 	return parentID, fileName, nil
+}
+
+func (gd *GoogleDrive) ListFilesHandler(request ListFilesRequest) (*mcp.ToolResponse, error) {
+	// パスが指定されていない場合はルートディレクトリを使用
+	dirPath := request.Path
+	if dirPath == "" {
+		dirPath = "."
+	}
+
+	// 指定されたパスのフォルダIDを取得
+	folderID, err := gd.getFileIDByPath(dirPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get folder ID: %w", err)
+	}
+
+	// フォルダ内のファイルとフォルダを取得
+	query := fmt.Sprintf("'%s' in parents and trashed = false", folderID)
+	fileList, err := gd.service.Files.List().
+		Q(query).
+		Fields("files(id, name, mimeType, createdTime, modifiedTime, size)").
+		OrderBy("name").
+		Do()
+	if err != nil {
+		return nil, fmt.Errorf("failed to list files: %w", err)
+	}
+
+	// 結果を整形
+	var result strings.Builder
+	result.WriteString(fmt.Sprintf("Files in directory '%s':\n\n", dirPath))
+
+	// フォルダを先に表示
+	result.WriteString("Folders:\n")
+	folderCount := 0
+	for _, file := range fileList.Files {
+		if file.MimeType == "application/vnd.google-apps.folder" {
+			result.WriteString(fmt.Sprintf("- %s (Folder)\n", file.Name))
+			folderCount++
+		}
+	}
+	if folderCount == 0 {
+		result.WriteString("  No folders found\n")
+	}
+
+	// ファイルを表示
+	result.WriteString("\nFiles:\n")
+	fileCount := 0
+	for _, file := range fileList.Files {
+		if file.MimeType != "application/vnd.google-apps.folder" {
+			// Google Docsなどの特殊なファイルタイプを判別
+			fileType := "File"
+			switch file.MimeType {
+			case "application/vnd.google-apps.document":
+				fileType = "Google Doc"
+			case "application/vnd.google-apps.spreadsheet":
+				fileType = "Google Spreadsheet"
+			case "application/vnd.google-apps.presentation":
+				fileType = "Google Presentation"
+			case "application/vnd.google-apps.form":
+				fileType = "Google Form"
+			}
+
+			// ファイルサイズ（Google Docsなどは表示されない）
+			sizeInfo := ""
+			if file.Size > 0 {
+				sizeInfo = fmt.Sprintf(", Size: %d bytes", file.Size)
+			}
+
+			result.WriteString(fmt.Sprintf("- %s (%s%s)\n", file.Name, fileType, sizeInfo))
+			fileCount++
+		}
+	}
+	if fileCount == 0 {
+		result.WriteString("  No files found\n")
+	}
+
+	// 合計数
+	result.WriteString(fmt.Sprintf("\nTotal: %d folders, %d files\n", folderCount, fileCount))
+
+	// 成功レスポンスを返す
+	return mcp.NewToolResponse(
+		mcp.NewTextContent(result.String()),
+	), nil
 }
 
 func (gd *GoogleDrive) CopyFileHandler(request CopyFileRequest) (*mcp.ToolResponse, error) {

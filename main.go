@@ -37,6 +37,10 @@ func main() {
 		os.Exit(1)
 	}
 	server := mcp.NewServer(stdio.NewStdioServerTransport())
+	if err := server.RegisterTool("list_files", "List files in google drive", drive.ListFilesHandler); err != nil {
+		logger.ErrorContext(ctx, "failed to register tool list_files", "error", err)
+		os.Exit(1)
+	}
 	if err := server.RegisterTool("copy_file", "Copy file in google drive", drive.CopyFileHandler); err != nil {
 		logger.ErrorContext(ctx, "failed to register tool copy_file", "error", err)
 		os.Exit(1)
