@@ -6,6 +6,9 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"os/exec"
+	"runtime"
+	"time"
 
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
@@ -63,22 +66,102 @@ func (g *GoogleAuth) getClient(ctx context.Context, config *oauth2.Config) (*htt
 
 // ブラウザで認証し、認証コードを取得
 func getTokenFromWeb(config *oauth2.Config) (*oauth2.Token, error) {
+	// localhost でリダイレクトを受け取るように設定
+	config.RedirectURL = "http://localhost:8080/oauth2callback"
+
+	// 認証コードを受け取るためのチャネル
+	codeCh := make(chan string, 1)
+	errCh := make(chan error, 1)
+
+	// 一時的なHTTPサーバーを起動
+	server := &http.Server{Addr: ":8080"}
+
+	// コールバックハンドラー
+	http.HandleFunc("/oauth2callback", func(w http.ResponseWriter, r *http.Request) {
+		code := r.URL.Query().Get("code")
+		if code == "" {
+			errCh <- fmt.Errorf("no code in request")
+			http.Error(w, "No code in request", http.StatusBadRequest)
+			return
+		}
+
+		// 認証成功メッセージを表示
+		w.Header().Set("Content-Type", "text/html")
+		w.Write([]byte(`
+			<html>
+				<head>
+					<title>Authentication Successful</title>
+					<style>
+						body { font-family: Arial, sans-serif; text-align: center; padding: 50px; }
+						.success { color: #4CAF50; font-size: 24px; margin-bottom: 20px; }
+						.message { font-size: 16px; margin-bottom: 30px; }
+					</style>
+				</head>
+				<body>
+					<div class="success">Authentication Successful!</div>
+					<div class="message">You can close this window and return to the application.</div>
+				</body>
+			</html>
+		`))
+
+		// コードをチャネルに送信
+		codeCh <- code
+
+		// 5秒後にサーバーをシャットダウン
+		go func() {
+			time.Sleep(1 * time.Second)
+			server.Shutdown(context.Background())
+		}()
+	})
+
+	// サーバーを別のゴルーチンで起動
+	go func() {
+		if err := server.ListenAndServe(); err != http.ErrServerClosed {
+			errCh <- err
+		}
+	}()
+
+	// 認証URLを生成
 	authURL := config.AuthCodeURL("state-token", oauth2.AccessTypeOffline)
-	fmt.Printf("Open the following URL in your browser and then type the auth code: \n%v\n", authURL)
 
-	// ユーザーに認証コードを入力してもらう
-	fmt.Print("Input the auth code: ")
-	var authCode string
-	if _, err := fmt.Scan(&authCode); err != nil {
-		return nil, fmt.Errorf("failed to read auth code: %v", err)
+	// ブラウザを自動的に開く
+	fmt.Printf("Opening browser for authentication: %v\n", authURL)
+	if err := openBrowser(authURL); err != nil {
+		fmt.Printf("Could not open browser automatically. Please open the following URL in your browser: \n%v\n", authURL)
 	}
 
-	// 認証コードを使ってアクセストークンを取得
-	tok, err := config.Exchange(context.Background(), authCode)
-	if err != nil {
-		return nil, fmt.Errorf("failed to exchange auth code: %v", err)
+	// コードまたはエラーを待つ
+	select {
+	case code := <-codeCh:
+		// 認証コードを使ってアクセストークンを取得
+		tok, err := config.Exchange(context.Background(), code)
+		if err != nil {
+			return nil, fmt.Errorf("failed to exchange authorization code: %v", err)
+		}
+		return tok, nil
+	case err := <-errCh:
+		return nil, fmt.Errorf("error during authentication process: %v", err)
+	case <-time.After(2 * time.Minute):
+		return nil, fmt.Errorf("authentication timed out")
 	}
-	return tok, nil
+}
+
+// ブラウザを開く関数
+func openBrowser(url string) error {
+	var cmd *exec.Cmd
+
+	switch runtime.GOOS {
+	case "darwin":
+		cmd = exec.Command("open", url)
+	case "windows":
+		cmd = exec.Command("rundll32", "url.dll,FileProtocolHandler", url)
+	case "linux":
+		cmd = exec.Command("xdg-open", url)
+	default:
+		return fmt.Errorf("unsupported platform")
+	}
+
+	return cmd.Start()
 }
 
 // ローカルに保存されているトークンを読み込む
