@@ -41,6 +41,11 @@ type CopySheetRequest struct {
 	DstName string `json:"dst_path" jsonschema:"required,description=destination sheet name"`
 }
 
+type RenameSheetRequest struct {
+	Path    string `json:"path" jsonschema:"required,description=sheet path"`
+	NewName string `json:"new_name" jsonschema:"required,description=new sheet name"`
+}
+
 // パスからスプレッドシートIDとシート名を抽出する
 // 例: "MySpreadsheet/Sheet1" -> "spreadsheetId", "Sheet1"
 func (gs *GoogleSheets) parseSheetPath(sheetPath string) (string, string, error) {
@@ -141,5 +146,49 @@ func (gs *GoogleSheets) CopySheetHandler(request CopySheetRequest) (*mcp.ToolRes
 
 	return mcp.NewToolResponse(
 		mcp.NewTextContent(fmt.Sprintf("Sheet '%s' successfully copied to '%s'", request.SrcName, request.DstName)),
+	), nil
+}
+
+func (gs *GoogleSheets) RenameSheetHandler(request RenameSheetRequest) (*mcp.ToolResponse, error) {
+	// シートのパスを解析
+	spreadsheetId, sheetName, err := gs.parseSheetPath(request.Path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse sheet path: %w", err)
+	}
+
+	// 新しい名前が空でないことを確認
+	if request.NewName == "" {
+		return nil, fmt.Errorf("new sheet name cannot be empty")
+	}
+
+	// シートIDを取得
+	sheetId, err := gs.getSheetId(spreadsheetId, sheetName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get sheet ID: %w", err)
+	}
+
+	// シート名を更新するリクエストを作成
+	updateRequest := &sheets.BatchUpdateSpreadsheetRequest{
+		Requests: []*sheets.Request{
+			{
+				UpdateSheetProperties: &sheets.UpdateSheetPropertiesRequest{
+					Properties: &sheets.SheetProperties{
+						SheetId: sheetId,
+						Title:   request.NewName,
+					},
+					Fields: "title",
+				},
+			},
+		},
+	}
+
+	// シート名を更新
+	_, err = gs.service.Spreadsheets.BatchUpdate(spreadsheetId, updateRequest).Do()
+	if err != nil {
+		return nil, fmt.Errorf("failed to rename sheet: %w", err)
+	}
+
+	return mcp.NewToolResponse(
+		mcp.NewTextContent(fmt.Sprintf("Sheet '%s' successfully renamed to '%s'", request.Path, request.NewName)),
 	), nil
 }
