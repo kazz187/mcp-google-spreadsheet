@@ -31,5 +31,6 @@ func NewConfig() (*Config, error) {
 		}
 		tokenPath = homeDir + "/.mcp_google_spreadsheet.json"
 	}
+	c.TokenPath = tokenPath
 	return c, nil
 }
