@@ -444,6 +444,19 @@ func (gs *GoogleSheets) UpdateCellsHandler(request UpdateCellsRequest) (*mcp.Too
 	// 範囲を完全な形式に変換（シート名を含む）
 	fullRange := fmt.Sprintf("%s!%s", sheetName, request.Range)
 
+	// 変更前のデータを取得
+	prevData, err := gs.service.Spreadsheets.Values.Get(spreadsheetId, fullRange).Do()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get previous data: %w", err)
+	}
+
+	// 変更前のデータの行数と列数を計算
+	prevRowCount := len(prevData.Values)
+	prevColCount := 0
+	if prevRowCount > 0 {
+		prevColCount = len(prevData.Values[0])
+	}
+
 	// 値を更新するリクエストを作成
 	valueRange := &sheets.ValueRange{
 		Range:  fullRange,
@@ -461,6 +474,11 @@ func (gs *GoogleSheets) UpdateCellsHandler(request UpdateCellsRequest) (*mcp.Too
 	message := fmt.Sprintf("Successfully updated %d cells in range '%s' of sheet '%s' in spreadsheet '%s'",
 		updateResponse.UpdatedCells, request.Range, request.SheetName, request.SpreadsheetName)
 
+	// 変更前のデータの情報をメッセージに含める
+	message += fmt.Sprintf("\n\nPrevious data for range '%s' has been saved (%d rows x %d columns). To undo this change, you can use the previous data.",
+		request.Range, prevRowCount, prevColCount)
+
+	// レスポンスを作成
 	return mcp.NewToolResponse(
 		mcp.NewTextContent(message),
 	), nil
@@ -481,6 +499,9 @@ func (gs *GoogleSheets) BatchUpdateCellsHandler(request BatchUpdateCellsRequest)
 		return nil, fmt.Errorf("ranges cannot be empty")
 	}
 
+	// 変更前のデータを保存するマップ
+	previousData := make(map[string][][]interface{})
+
 	// バッチ更新用のデータを作成
 	var data []*sheets.ValueRange
 	for rangeStr, values := range request.Ranges {
@@ -491,6 +512,13 @@ func (gs *GoogleSheets) BatchUpdateCellsHandler(request BatchUpdateCellsRequest)
 
 		// 範囲を完全な形式に変換（シート名を含む）
 		fullRange := fmt.Sprintf("%s!%s", sheetName, rangeStr)
+
+		// 変更前のデータを取得
+		prevData, err := gs.service.Spreadsheets.Values.Get(spreadsheetId, fullRange).Do()
+		if err != nil {
+			return nil, fmt.Errorf("failed to get previous data for range '%s': %w", rangeStr, err)
+		}
+		previousData[rangeStr] = prevData.Values
 
 		// ValueRangeを作成
 		valueRange := &sheets.ValueRange{
@@ -519,6 +547,14 @@ func (gs *GoogleSheets) BatchUpdateCellsHandler(request BatchUpdateCellsRequest)
 		batchUpdateResponse.TotalUpdatedCells, batchUpdateResponse.TotalUpdatedSheets,
 		request.SheetName, request.SpreadsheetName)
 
+	// 変更前のデータの情報をメッセージに含める
+	message += "\n\nPrevious data for the following ranges has been saved:"
+	for rangeStr := range previousData {
+		message += fmt.Sprintf("\n- %s", rangeStr)
+	}
+	message += "\n\nTo undo these changes, you can use the previous data."
+
+	// レスポンスを作成
 	return mcp.NewToolResponse(
 		mcp.NewTextContent(message),
 	), nil
