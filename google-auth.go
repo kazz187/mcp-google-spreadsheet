@@ -13,11 +13,15 @@ import (
 
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
+	drive "google.golang.org/api/drive/v3"
+	"google.golang.org/api/option"
 	"google.golang.org/api/sheets/v4"
 )
 
 type GoogleAuth struct {
-	cfg *Config
+	cfg    *Config
+	config *oauth2.Config
+	token  *oauth2.Token
 }
 
 func NewGoogleAuth(cfg *Config) *GoogleAuth {
@@ -36,6 +40,9 @@ func (g *GoogleAuth) AuthClient(ctx context.Context) (*http.Client, error) {
 		return nil, fmt.Errorf("unable to parse client id file to config: %w", err)
 	}
 
+	// OAuth2設定を保存
+	g.config = gCfg
+
 	client, err := g.getClient(ctx, gCfg)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get client: %w", err)
@@ -43,29 +50,111 @@ func (g *GoogleAuth) AuthClient(ctx context.Context) (*http.Client, error) {
 	return client, nil
 }
 
+// GetSheetsService は認証済みのSheetsサービスを返します
+func (g *GoogleAuth) GetSheetsService(ctx context.Context) (*sheets.Service, error) {
+	client, err := g.getClient(ctx, g.config)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get client: %w", err)
+	}
+
+	srv, err := sheets.NewService(ctx, option.WithHTTPClient(client))
+	if err != nil {
+		newClient, refreshErr := g.refreshAndGetClient(ctx)
+		if refreshErr != nil {
+			return nil, fmt.Errorf("failed to refresh token after API error: %w, %w", err, refreshErr)
+		}
+		return sheets.NewService(ctx, option.WithHTTPClient(newClient))
+	}
+	return srv, nil
+}
+
+// GetDriveService は認証済みのDriveサービスを返します
+func (g *GoogleAuth) GetDriveService(ctx context.Context) (*drive.Service, error) {
+	client, err := g.getClient(ctx, g.config)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get client: %w", err)
+	}
+
+	srv, err := drive.NewService(ctx, option.WithHTTPClient(client))
+	if err != nil {
+		newClient, refreshErr := g.refreshAndGetClient(ctx)
+		if refreshErr != nil {
+			return nil, fmt.Errorf("failed to refresh token after API error: %w, %w", err, refreshErr)
+		}
+		return drive.NewService(ctx, option.WithHTTPClient(newClient))
+	}
+	return srv, nil
+}
+
+// refreshAndGetClient はトークンをリフレッシュして新しいクライアントを返します
+func (g *GoogleAuth) refreshAndGetClient(ctx context.Context) (*http.Client, error) {
+	if g.config == nil {
+		// configがまだ初期化されていない場合は初期化
+		b, err := os.ReadFile(g.cfg.ClientSecretPath)
+		if err != nil {
+			return nil, fmt.Errorf("could not read client id file: %w", err)
+		}
+		gCfg, err := google.ConfigFromJSON(b, sheets.DriveScope, sheets.SpreadsheetsScope)
+		if err != nil {
+			return nil, fmt.Errorf("unable to parse client id file to config: %w", err)
+		}
+		g.config = gCfg
+	}
+
+	// 再認証を試みる
+	fmt.Println("Attempting to re-authenticate...")
+	tok, err := getTokenFromWeb(ctx, g.config)
+	if err != nil {
+		return nil, fmt.Errorf("unable to get new token: %w", err)
+	}
+
+	if err := saveToken(g.cfg.TokenPath, tok); err != nil {
+		return nil, fmt.Errorf("unable to save token: %w", err)
+	}
+
+	return g.config.Client(ctx, tok), nil
+}
+
 // 認証情報を取得し、HTTP クライアントを作成
 func (g *GoogleAuth) getClient(ctx context.Context, config *oauth2.Config) (*http.Client, error) {
-	// ローカルにトークンが保存されていれば、それを使う
-	tokenPath := g.cfg.TokenPath
-	if tokenPath == "" {
-		homeDir, err := os.UserHomeDir()
+	if g.token == nil {
+		tok, err := tokenFromFile(g.cfg.TokenPath)
 		if err != nil {
-			return nil, fmt.Errorf("failed to get user home directory: %w", err)
+			// トークンがない場合、新しく取得する
+			tok, err := getTokenFromWeb(ctx, config)
+			if err != nil {
+				return nil, fmt.Errorf("unable to get token: %w", err)
+			}
+			if err := saveToken(g.cfg.TokenPath, tok); err != nil {
+				return nil, fmt.Errorf("unable to save token: %w", err)
+			}
 		}
-		tokenPath = homeDir + "/.mcp_google_spreadsheet.json"
+		g.token = tok
 	}
-	tok, err := tokenFromFile(tokenPath)
-	if err != nil {
-		// トークンがない場合、新しく取得する
-		tok, err := getTokenFromWeb(ctx, config)
+
+	// トークンの有効期限をチェック
+	if g.token.Expiry.Before(time.Now()) {
+		fmt.Println("Token has expired, refreshing...")
+
+		// TokenSourceを使ってトークンをリフレッシュ
+		tokenSource := config.TokenSource(ctx, g.token)
+		newToken, err := tokenSource.Token()
 		if err != nil {
-			return nil, fmt.Errorf("unable to get token: %w", err)
+			fmt.Printf("Failed to refresh token: %v\n", err)
+			// リフレッシュに失敗した場合は再認証
+			newToken, err = getTokenFromWeb(ctx, config)
+			if err != nil {
+				return nil, fmt.Errorf("unable to get new token: %w", err)
+			}
 		}
-		if err := saveToken(tokenPath, tok); err != nil {
-			return nil, fmt.Errorf("unable to save token: %w", err)
+		// 新しいトークンを保存
+		if err := saveToken(g.cfg.TokenPath, newToken); err != nil {
+			return nil, fmt.Errorf("unable to save refreshed token: %w", err)
 		}
+		g.token = newToken
 	}
-	return config.Client(ctx, tok), nil
+
+	return config.Client(ctx, g.token), nil
 }
 
 // ブラウザで認証し、認証コードを取得

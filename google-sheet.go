@@ -3,36 +3,21 @@ package main
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"strings"
 
 	mcp "github.com/metoro-io/mcp-golang"
-	"google.golang.org/api/drive/v3"
-	"google.golang.org/api/option"
 	"google.golang.org/api/sheets/v4"
 )
 
 type GoogleSheets struct {
-	cfg     *Config
-	service *sheets.Service
-	drive   *drive.Service
+	cfg  *Config
+	auth *GoogleAuth
 }
 
-func NewGoogleSheets(ctx context.Context, cfg *Config, cli *http.Client) (*GoogleSheets, error) {
-	service, err := sheets.NewService(ctx, option.WithHTTPClient(cli))
-	if err != nil {
-		return nil, fmt.Errorf("failed to create sheets service: %w", err)
-	}
-
-	driveService, err := drive.NewService(ctx, option.WithHTTPClient(cli))
-	if err != nil {
-		return nil, fmt.Errorf("failed to create drive service for sheets: %w", err)
-	}
-
+func NewGoogleSheets(cfg *Config, auth *GoogleAuth) (*GoogleSheets, error) {
 	return &GoogleSheets{
-		cfg:     cfg,
-		service: service,
-		drive:   driveService,
+		cfg:  cfg,
+		auth: auth,
 	}, nil
 }
 
@@ -90,9 +75,22 @@ type BatchUpdateCellsRequest struct {
 
 // スプレッドシート名からスプレッドシートIDを取得する
 func (gs *GoogleSheets) getSpreadsheetId(spreadsheetName string) (string, error) {
+	return gs.getSpreadsheetIdWithContext(context.Background(), spreadsheetName)
+}
+
+// コンテキスト付きでスプレッドシート名からスプレッドシートIDを取得する
+func (gs *GoogleSheets) getSpreadsheetIdWithContext(ctx context.Context, spreadsheetName string) (string, error) {
 	// スプレッドシート名からIDを検索
 	query := fmt.Sprintf("'%s' in parents and name = '%s' and mimeType = 'application/vnd.google-apps.spreadsheet' and trashed = false", gs.cfg.FolderID, spreadsheetName)
-	fileList, err := gs.drive.Files.List().
+	service, err := gs.auth.GetDriveService(ctx)
+	if err != nil {
+		return "", fmt.Errorf("failed to get drive service: %w", err)
+	}
+
+	// 明示的に型を指定
+	driveService := service
+
+	fileList, err := driveService.Files.List().
 		Q(query).
 		SupportsAllDrives(true).
 		IncludeItemsFromAllDrives(true).
@@ -111,8 +109,18 @@ func (gs *GoogleSheets) getSpreadsheetId(spreadsheetName string) (string, error)
 
 // シートIDを取得する
 func (gs *GoogleSheets) getSheetId(spreadsheetId string, sheetName string) (int64, error) {
+	return gs.getSheetIdWithContext(context.Background(), spreadsheetId, sheetName)
+}
+
+// コンテキスト付きでシートIDを取得する
+func (gs *GoogleSheets) getSheetIdWithContext(ctx context.Context, spreadsheetId string, sheetName string) (int64, error) {
 	// スプレッドシートの情報を取得
-	spreadsheet, err := gs.service.Spreadsheets.Get(spreadsheetId).Do()
+	service, err := gs.auth.GetSheetsService(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get sheets service: %w", err)
+	}
+
+	spreadsheet, err := service.Spreadsheets.Get(spreadsheetId).Do()
 	if err != nil {
 		return 0, fmt.Errorf("failed to get spreadsheet: %w", err)
 	}
@@ -128,14 +136,18 @@ func (gs *GoogleSheets) getSheetId(spreadsheetId string, sheetName string) (int6
 }
 
 func (gs *GoogleSheets) CopySheetHandler(request CopySheetRequest) (*mcp.ToolResponse, error) {
+	return gs.CopySheetHandlerWithContext(context.Background(), request)
+}
+
+func (gs *GoogleSheets) CopySheetHandlerWithContext(ctx context.Context, request CopySheetRequest) (*mcp.ToolResponse, error) {
 	// ソーススプレッドシートのIDを取得
-	srcSpreadsheetId, err := gs.getSpreadsheetId(request.SrcSpreadsheetName)
+	srcSpreadsheetId, err := gs.getSpreadsheetIdWithContext(ctx, request.SrcSpreadsheetName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get source spreadsheet ID: %w", err)
 	}
 
 	// 宛先スプレッドシートのIDを取得
-	dstSpreadsheetId, err := gs.getSpreadsheetId(request.DstSpreadsheetName)
+	dstSpreadsheetId, err := gs.getSpreadsheetIdWithContext(ctx, request.DstSpreadsheetName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get destination spreadsheet ID: %w", err)
 	}
@@ -144,7 +156,7 @@ func (gs *GoogleSheets) CopySheetHandler(request CopySheetRequest) (*mcp.ToolRes
 	dstSheetName := request.DstSheetName
 
 	// ソースシートのIDを取得
-	srcSheetId, err := gs.getSheetId(srcSpreadsheetId, srcSheetName)
+	srcSheetId, err := gs.getSheetIdWithContext(ctx, srcSpreadsheetId, srcSheetName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get source sheet ID: %w", err)
 	}
@@ -154,7 +166,12 @@ func (gs *GoogleSheets) CopySheetHandler(request CopySheetRequest) (*mcp.ToolRes
 		DestinationSpreadsheetId: dstSpreadsheetId,
 	}
 
-	copyResponse, err := gs.service.Spreadsheets.Sheets.CopyTo(srcSpreadsheetId, srcSheetId, copySheetRequest).Do()
+	service, err := gs.auth.GetSheetsService(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get sheets service: %w", err)
+	}
+
+	copyResponse, err := service.Spreadsheets.Sheets.CopyTo(srcSpreadsheetId, srcSheetId, copySheetRequest).Do()
 	if err != nil {
 		return nil, fmt.Errorf("failed to copy sheet: %w", err)
 	}
@@ -179,7 +196,12 @@ func (gs *GoogleSheets) CopySheetHandler(request CopySheetRequest) (*mcp.ToolRes
 	}
 
 	// シート名を更新
-	_, err = gs.service.Spreadsheets.BatchUpdate(dstSpreadsheetId, updateRequest).Do()
+	service, err = gs.auth.GetSheetsService(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get sheets service: %w", err)
+	}
+
+	_, err = service.Spreadsheets.BatchUpdate(dstSpreadsheetId, updateRequest).Do()
 	if err != nil {
 		return nil, fmt.Errorf("failed to rename copied sheet: %w", err)
 	}
@@ -192,8 +214,12 @@ func (gs *GoogleSheets) CopySheetHandler(request CopySheetRequest) (*mcp.ToolRes
 }
 
 func (gs *GoogleSheets) RenameSheetHandler(request RenameSheetRequest) (*mcp.ToolResponse, error) {
+	return gs.RenameSheetHandlerWithContext(context.Background(), request)
+}
+
+func (gs *GoogleSheets) RenameSheetHandlerWithContext(ctx context.Context, request RenameSheetRequest) (*mcp.ToolResponse, error) {
 	// スプレッドシートIDを取得
-	spreadsheetId, err := gs.getSpreadsheetId(request.SpreadsheetName)
+	spreadsheetId, err := gs.getSpreadsheetIdWithContext(ctx, request.SpreadsheetName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get spreadsheet ID: %w", err)
 	}
@@ -206,7 +232,7 @@ func (gs *GoogleSheets) RenameSheetHandler(request RenameSheetRequest) (*mcp.Too
 	}
 
 	// シートIDを取得
-	sheetId, err := gs.getSheetId(spreadsheetId, sheetName)
+	sheetId, err := gs.getSheetIdWithContext(ctx, spreadsheetId, sheetName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get sheet ID: %w", err)
 	}
@@ -227,7 +253,12 @@ func (gs *GoogleSheets) RenameSheetHandler(request RenameSheetRequest) (*mcp.Too
 	}
 
 	// シート名を更新
-	_, err = gs.service.Spreadsheets.BatchUpdate(spreadsheetId, updateRequest).Do()
+	service, err := gs.auth.GetSheetsService(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get sheets service: %w", err)
+	}
+
+	_, err = service.Spreadsheets.BatchUpdate(spreadsheetId, updateRequest).Do()
 	if err != nil {
 		return nil, fmt.Errorf("failed to rename sheet: %w", err)
 	}
@@ -239,14 +270,23 @@ func (gs *GoogleSheets) RenameSheetHandler(request RenameSheetRequest) (*mcp.Too
 }
 
 func (gs *GoogleSheets) ListSheetsHandler(request ListSheetsRequest) (*mcp.ToolResponse, error) {
+	return gs.ListSheetsHandlerWithContext(context.Background(), request)
+}
+
+func (gs *GoogleSheets) ListSheetsHandlerWithContext(ctx context.Context, request ListSheetsRequest) (*mcp.ToolResponse, error) {
 	// スプレッドシート名からスプレッドシートIDを取得
-	spreadsheetId, err := gs.getSpreadsheetId(request.SpreadsheetName)
+	spreadsheetId, err := gs.getSpreadsheetIdWithContext(ctx, request.SpreadsheetName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get spreadsheet ID: %w", err)
 	}
 
 	// スプレッドシートの情報を取得
-	spreadsheet, err := gs.service.Spreadsheets.Get(spreadsheetId).Do()
+	service, err := gs.auth.GetSheetsService(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get sheets service: %w", err)
+	}
+
+	spreadsheet, err := service.Spreadsheets.Get(spreadsheetId).Do()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get spreadsheet: %w", err)
 	}
@@ -270,8 +310,12 @@ func (gs *GoogleSheets) ListSheetsHandler(request ListSheetsRequest) (*mcp.ToolR
 }
 
 func (gs *GoogleSheets) AddRowsHandler(request AddRowsRequest) (*mcp.ToolResponse, error) {
+	return gs.AddRowsHandlerWithContext(context.Background(), request)
+}
+
+func (gs *GoogleSheets) AddRowsHandlerWithContext(ctx context.Context, request AddRowsRequest) (*mcp.ToolResponse, error) {
 	// スプレッドシートIDを取得
-	spreadsheetId, err := gs.getSpreadsheetId(request.SpreadsheetName)
+	spreadsheetId, err := gs.getSpreadsheetIdWithContext(ctx, request.SpreadsheetName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get spreadsheet ID: %w", err)
 	}
@@ -284,7 +328,7 @@ func (gs *GoogleSheets) AddRowsHandler(request AddRowsRequest) (*mcp.ToolRespons
 	}
 
 	// シートIDを取得
-	sheetId, err := gs.getSheetId(spreadsheetId, sheetName)
+	sheetId, err := gs.getSheetIdWithContext(ctx, spreadsheetId, sheetName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get sheet ID: %w", err)
 	}
@@ -325,7 +369,12 @@ func (gs *GoogleSheets) AddRowsHandler(request AddRowsRequest) (*mcp.ToolRespons
 	}
 
 	// 行を追加
-	_, err = gs.service.Spreadsheets.BatchUpdate(spreadsheetId, batchRequest).Do()
+	service, err := gs.auth.GetSheetsService(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get sheets service: %w", err)
+	}
+
+	_, err = service.Spreadsheets.BatchUpdate(spreadsheetId, batchRequest).Do()
 	if err != nil {
 		return nil, fmt.Errorf("failed to add rows: %w", err)
 	}
@@ -346,8 +395,12 @@ func (gs *GoogleSheets) AddRowsHandler(request AddRowsRequest) (*mcp.ToolRespons
 }
 
 func (gs *GoogleSheets) AddColumnsHandler(request AddColumnsRequest) (*mcp.ToolResponse, error) {
+	return gs.AddColumnsHandlerWithContext(context.Background(), request)
+}
+
+func (gs *GoogleSheets) AddColumnsHandlerWithContext(ctx context.Context, request AddColumnsRequest) (*mcp.ToolResponse, error) {
 	// スプレッドシートIDを取得
-	spreadsheetId, err := gs.getSpreadsheetId(request.SpreadsheetName)
+	spreadsheetId, err := gs.getSpreadsheetIdWithContext(ctx, request.SpreadsheetName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get spreadsheet ID: %w", err)
 	}
@@ -360,7 +413,7 @@ func (gs *GoogleSheets) AddColumnsHandler(request AddColumnsRequest) (*mcp.ToolR
 	}
 
 	// シートIDを取得
-	sheetId, err := gs.getSheetId(spreadsheetId, sheetName)
+	sheetId, err := gs.getSheetIdWithContext(ctx, spreadsheetId, sheetName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get sheet ID: %w", err)
 	}
@@ -401,7 +454,12 @@ func (gs *GoogleSheets) AddColumnsHandler(request AddColumnsRequest) (*mcp.ToolR
 	}
 
 	// 列を追加
-	_, err = gs.service.Spreadsheets.BatchUpdate(spreadsheetId, batchRequest).Do()
+	service, err := gs.auth.GetSheetsService(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get sheets service: %w", err)
+	}
+
+	_, err = service.Spreadsheets.BatchUpdate(spreadsheetId, batchRequest).Do()
 	if err != nil {
 		return nil, fmt.Errorf("failed to add columns: %w", err)
 	}
@@ -423,8 +481,12 @@ func (gs *GoogleSheets) AddColumnsHandler(request AddColumnsRequest) (*mcp.ToolR
 
 // 単一範囲のセル編集ハンドラー
 func (gs *GoogleSheets) UpdateCellsHandler(request UpdateCellsRequest) (*mcp.ToolResponse, error) {
+	return gs.UpdateCellsHandlerWithContext(context.Background(), request)
+}
+
+func (gs *GoogleSheets) UpdateCellsHandlerWithContext(ctx context.Context, request UpdateCellsRequest) (*mcp.ToolResponse, error) {
 	// スプレッドシートIDを取得
-	spreadsheetId, err := gs.getSpreadsheetId(request.SpreadsheetName)
+	spreadsheetId, err := gs.getSpreadsheetIdWithContext(ctx, request.SpreadsheetName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get spreadsheet ID: %w", err)
 	}
@@ -445,7 +507,12 @@ func (gs *GoogleSheets) UpdateCellsHandler(request UpdateCellsRequest) (*mcp.Too
 	fullRange := fmt.Sprintf("%s!%s", sheetName, request.Range)
 
 	// 変更前のデータを取得
-	prevData, err := gs.service.Spreadsheets.Values.Get(spreadsheetId, fullRange).Do()
+	service, err := gs.auth.GetSheetsService(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get sheets service: %w", err)
+	}
+
+	prevData, err := service.Spreadsheets.Values.Get(spreadsheetId, fullRange).Do()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get previous data: %w", err)
 	}
@@ -464,7 +531,12 @@ func (gs *GoogleSheets) UpdateCellsHandler(request UpdateCellsRequest) (*mcp.Too
 	}
 
 	// 値を更新
-	updateResponse, err := gs.service.Spreadsheets.Values.Update(
+	service, err = gs.auth.GetSheetsService(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get sheets service: %w", err)
+	}
+
+	updateResponse, err := service.Spreadsheets.Values.Update(
 		spreadsheetId, fullRange, valueRange).ValueInputOption("USER_ENTERED").Do()
 	if err != nil {
 		return nil, fmt.Errorf("failed to update cells: %w", err)
@@ -486,8 +558,12 @@ func (gs *GoogleSheets) UpdateCellsHandler(request UpdateCellsRequest) (*mcp.Too
 
 // 複数範囲のセル一括編集ハンドラー
 func (gs *GoogleSheets) BatchUpdateCellsHandler(request BatchUpdateCellsRequest) (*mcp.ToolResponse, error) {
+	return gs.BatchUpdateCellsHandlerWithContext(context.Background(), request)
+}
+
+func (gs *GoogleSheets) BatchUpdateCellsHandlerWithContext(ctx context.Context, request BatchUpdateCellsRequest) (*mcp.ToolResponse, error) {
 	// スプレッドシートIDを取得
-	spreadsheetId, err := gs.getSpreadsheetId(request.SpreadsheetName)
+	spreadsheetId, err := gs.getSpreadsheetIdWithContext(ctx, request.SpreadsheetName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get spreadsheet ID: %w", err)
 	}
@@ -514,7 +590,12 @@ func (gs *GoogleSheets) BatchUpdateCellsHandler(request BatchUpdateCellsRequest)
 		fullRange := fmt.Sprintf("%s!%s", sheetName, rangeStr)
 
 		// 変更前のデータを取得
-		prevData, err := gs.service.Spreadsheets.Values.Get(spreadsheetId, fullRange).Do()
+		service, err := gs.auth.GetSheetsService(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get sheets service: %w", err)
+		}
+
+		prevData, err := service.Spreadsheets.Values.Get(spreadsheetId, fullRange).Do()
 		if err != nil {
 			return nil, fmt.Errorf("failed to get previous data for range '%s': %w", rangeStr, err)
 		}
@@ -536,7 +617,12 @@ func (gs *GoogleSheets) BatchUpdateCellsHandler(request BatchUpdateCellsRequest)
 	}
 
 	// バッチ更新を実行
-	batchUpdateResponse, err := gs.service.Spreadsheets.Values.BatchUpdate(
+	service, err := gs.auth.GetSheetsService(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get sheets service: %w", err)
+	}
+
+	batchUpdateResponse, err := service.Spreadsheets.Values.BatchUpdate(
 		spreadsheetId, batchUpdateRequest).Do()
 	if err != nil {
 		return nil, fmt.Errorf("failed to batch update cells: %w", err)
@@ -561,8 +647,12 @@ func (gs *GoogleSheets) BatchUpdateCellsHandler(request BatchUpdateCellsRequest)
 }
 
 func (gs *GoogleSheets) GetSheetDataHandler(request GetSheetDataRequest) (*mcp.ToolResponse, error) {
+	return gs.GetSheetDataHandlerWithContext(context.Background(), request)
+}
+
+func (gs *GoogleSheets) GetSheetDataHandlerWithContext(ctx context.Context, request GetSheetDataRequest) (*mcp.ToolResponse, error) {
 	// スプレッドシートIDを取得
-	spreadsheetId, err := gs.getSpreadsheetId(request.SpreadsheetName)
+	spreadsheetId, err := gs.getSpreadsheetIdWithContext(ctx, request.SpreadsheetName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get spreadsheet ID: %w", err)
 	}
@@ -576,7 +666,12 @@ func (gs *GoogleSheets) GetSheetDataHandler(request GetSheetDataRequest) (*mcp.T
 	}
 
 	// シートデータを取得
-	resp, err := gs.service.Spreadsheets.Values.Get(spreadsheetId, range_).Do()
+	service, err := gs.auth.GetSheetsService(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get sheets service: %w", err)
+	}
+
+	resp, err := service.Spreadsheets.Values.Get(spreadsheetId, range_).Do()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get sheet data: %w", err)
 	}

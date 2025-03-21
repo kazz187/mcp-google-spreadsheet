@@ -3,28 +3,22 @@ package main
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"path"
 	"strings"
 
 	mcp "github.com/metoro-io/mcp-golang"
 	"google.golang.org/api/drive/v3"
-	"google.golang.org/api/option"
 )
 
 type GoogleDrive struct {
-	cfg     *Config
-	service *drive.Service
+	cfg  *Config
+	auth *GoogleAuth
 }
 
-func NewGoogleDrive(ctx context.Context, cfg *Config, client *http.Client) (*GoogleDrive, error) {
-	service, err := drive.NewService(ctx, option.WithHTTPClient(client))
-	if err != nil {
-		return nil, fmt.Errorf("failed to create drive service: %w", err)
-	}
+func NewGoogleDrive(cfg *Config, auth *GoogleAuth) (*GoogleDrive, error) {
 	return &GoogleDrive{
-		cfg:     cfg,
-		service: service,
+		cfg:  cfg,
+		auth: auth,
 	}, nil
 }
 
@@ -43,7 +37,12 @@ type RenameFileRequest struct {
 }
 
 // パスからファイルIDを取得する
-func (gd *GoogleDrive) getFileIDByPath(filePath string) (string, error) {
+func (gd *GoogleDrive) getFileIDByPath(ctx context.Context, filePath string) (string, error) {
+	return gd.getFileIDByPathWithContext(ctx, filePath)
+}
+
+// コンテキスト付きでパスからファイルIDを取得する
+func (gd *GoogleDrive) getFileIDByPathWithContext(ctx context.Context, filePath string) (string, error) {
 	// パスの正規化と検証
 	filePath = path.Clean(filePath)
 	if strings.HasPrefix(filePath, "..") || strings.HasPrefix(filePath, "/") {
@@ -67,7 +66,12 @@ func (gd *GoogleDrive) getFileIDByPath(filePath string) (string, error) {
 
 		// 現在のフォルダ内のファイル/フォルダを検索
 		query := fmt.Sprintf("'%s' in parents and name = '%s' and trashed = false", parentID, part)
-		fileList, err := gd.service.Files.List().
+		service, err := gd.auth.GetDriveService(ctx)
+		if err != nil {
+			return "", fmt.Errorf("failed to get drive service: %w", err)
+		}
+
+		fileList, err := service.Files.List().
 			Q(query).
 			SupportsAllDrives(true).         // 共有ドライブ対応
 			IncludeItemsFromAllDrives(true). // 共有ドライブ対応
@@ -93,7 +97,7 @@ func (gd *GoogleDrive) getFileIDByPath(filePath string) (string, error) {
 }
 
 // パスからファイルの親フォルダIDとファイル名を取得する
-func (gd *GoogleDrive) getParentIDAndFileName(filePath string) (string, string, error) {
+func (gd *GoogleDrive) getParentIDAndFileName(ctx context.Context, filePath string) (string, string, error) {
 	// パスの正規化と検証
 	filePath = path.Clean(filePath)
 	if strings.HasPrefix(filePath, "..") || strings.HasPrefix(filePath, "/") {
@@ -114,7 +118,7 @@ func (gd *GoogleDrive) getParentIDAndFileName(filePath string) (string, string, 
 		// 末尾のスラッシュを削除
 		dir = strings.TrimSuffix(dir, "/")
 		var err error
-		parentID, err = gd.getFileIDByPath(dir)
+		parentID, err = gd.getFileIDByPath(ctx, dir)
 		if err != nil {
 			return "", "", err
 		}
@@ -124,6 +128,10 @@ func (gd *GoogleDrive) getParentIDAndFileName(filePath string) (string, string, 
 }
 
 func (gd *GoogleDrive) ListFilesHandler(request ListFilesRequest) (*mcp.ToolResponse, error) {
+	return gd.ListFilesHandlerWithContext(context.Background(), request)
+}
+
+func (gd *GoogleDrive) ListFilesHandlerWithContext(ctx context.Context, request ListFilesRequest) (*mcp.ToolResponse, error) {
 	// パスが指定されていない場合はルートディレクトリを使用
 	dirPath := request.Path
 	if dirPath == "" {
@@ -131,14 +139,19 @@ func (gd *GoogleDrive) ListFilesHandler(request ListFilesRequest) (*mcp.ToolResp
 	}
 
 	// 指定されたパスのフォルダIDを取得
-	folderID, err := gd.getFileIDByPath(dirPath)
+	folderID, err := gd.getFileIDByPathWithContext(ctx, dirPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get folder ID: %w", err)
 	}
 
 	// フォルダ内のファイルとフォルダを取得
 	query := fmt.Sprintf("'%s' in parents and trashed = false", folderID)
-	fileList, err := gd.service.Files.List().
+	service, err := gd.auth.GetDriveService(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get drive service: %w", err)
+	}
+
+	fileList, err := service.Files.List().
 		Q(query).
 		SupportsAllDrives(true).         // 共有ドライブ対応
 		IncludeItemsFromAllDrives(true). // 共有ドライブ対応
@@ -208,14 +221,23 @@ func (gd *GoogleDrive) ListFilesHandler(request ListFilesRequest) (*mcp.ToolResp
 }
 
 func (gd *GoogleDrive) CopyFileHandler(request CopyFileRequest) (*mcp.ToolResponse, error) {
+	return gd.CopyFileHandlerWithContext(context.Background(), request)
+}
+
+func (gd *GoogleDrive) CopyFileHandlerWithContext(ctx context.Context, request CopyFileRequest) (*mcp.ToolResponse, error) {
 	// ソースファイルのIDを取得
-	srcFileID, err := gd.getFileIDByPath(request.SrcPath)
+	srcFileID, err := gd.getFileIDByPathWithContext(ctx, request.SrcPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get source file ID: %w", err)
 	}
 
 	// ソースファイルの情報を取得（共有ドライブ対応のため supportsAllDrives を追加）
-	srcFile, err := gd.service.Files.Get(srcFileID).
+	service, err := gd.auth.GetDriveService(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get drive service: %w", err)
+	}
+
+	srcFile, err := service.Files.Get(srcFileID).
 		SupportsAllDrives(true).
 		Fields("name", "mimeType").
 		Do()
@@ -224,7 +246,7 @@ func (gd *GoogleDrive) CopyFileHandler(request CopyFileRequest) (*mcp.ToolRespon
 	}
 
 	// 宛先の親フォルダIDとファイル名を取得
-	dstParentID, dstFileName, err := gd.getParentIDAndFileName(request.DstPath)
+	dstParentID, dstFileName, err := gd.getParentIDAndFileName(ctx, request.DstPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get destination parent ID and file name: %w", err)
 	}
@@ -240,7 +262,13 @@ func (gd *GoogleDrive) CopyFileHandler(request CopyFileRequest) (*mcp.ToolRespon
 		Parents: []string{dstParentID},
 	}
 
-	result, err := gd.service.Files.Copy(srcFileID, copiedFile).
+	// サービスを再取得（前のサービスが期限切れの可能性があるため）
+	service, err = gd.auth.GetDriveService(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get drive service: %w", err)
+	}
+
+	result, err := service.Files.Copy(srcFileID, copiedFile).
 		SupportsAllDrives(true).
 		Do()
 	if err != nil {
@@ -254,14 +282,23 @@ func (gd *GoogleDrive) CopyFileHandler(request CopyFileRequest) (*mcp.ToolRespon
 }
 
 func (gd *GoogleDrive) RenameFileHandler(request RenameFileRequest) (*mcp.ToolResponse, error) {
+	return gd.RenameFileHandlerWithContext(context.Background(), request)
+}
+
+func (gd *GoogleDrive) RenameFileHandlerWithContext(ctx context.Context, request RenameFileRequest) (*mcp.ToolResponse, error) {
 	// ファイルのIDを取得
-	fileID, err := gd.getFileIDByPath(request.Path)
+	fileID, err := gd.getFileIDByPathWithContext(ctx, request.Path)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get file ID: %w", err)
 	}
 
 	// ファイルの情報を取得して存在確認（共有ドライブ対応）
-	_, err = gd.service.Files.Get(fileID).
+	service, err := gd.auth.GetDriveService(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get drive service: %w", err)
+	}
+
+	_, err = service.Files.Get(fileID).
 		SupportsAllDrives(true).
 		Fields("name").
 		Do()
@@ -280,7 +317,13 @@ func (gd *GoogleDrive) RenameFileHandler(request RenameFileRequest) (*mcp.ToolRe
 	}
 
 	// ファイル名を変更（共有ドライブ対応）
-	result, err := gd.service.Files.Update(fileID, updateFile).
+	// サービスを再取得（前のサービスが期限切れの可能性があるため）
+	service, err = gd.auth.GetDriveService(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get drive service: %w", err)
+	}
+
+	result, err := service.Files.Update(fileID, updateFile).
 		SupportsAllDrives(true).
 		Do()
 	if err != nil {

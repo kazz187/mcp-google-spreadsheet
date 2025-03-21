@@ -21,17 +21,18 @@ func main() {
 		os.Exit(1)
 	}
 	gAuth := NewGoogleAuth(cfg)
-	authCli, err := gAuth.AuthClient(ctx)
+	// 認証クライアントを取得（GoogleAuthの初期化のため）
+	_, err = gAuth.AuthClient(ctx)
 	if err != nil {
 		logger.ErrorContext(ctx, "failed to create auth client", "error", err)
 		os.Exit(1)
 	}
-	drive, err := NewGoogleDrive(ctx, cfg, authCli)
+	drive, err := NewGoogleDrive(cfg, gAuth)
 	if err != nil {
 		logger.ErrorContext(ctx, "failed to create drive", "error", err)
 		os.Exit(1)
 	}
-	sheet, err := NewGoogleSheets(ctx, cfg, authCli)
+	sheet, err := NewGoogleSheets(cfg, gAuth)
 	if err != nil {
 		logger.ErrorContext(ctx, "failed to create sheet", "error", err)
 		os.Exit(1)
