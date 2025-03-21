@@ -479,6 +479,25 @@ func (gs *GoogleSheets) AddColumnsHandlerWithContext(ctx context.Context, reques
 	), nil
 }
 
+// 2次元配列のデータを表形式の文字列に変換する関数
+func formatTableData(rangeStr string, values [][]interface{}) string {
+	var builder strings.Builder
+	builder.WriteString(fmt.Sprintf("\nRange: %s\n", rangeStr))
+
+	for i, row := range values {
+		builder.WriteString(fmt.Sprintf("Row %d: ", i+1))
+		for j, cell := range row {
+			if j > 0 {
+				builder.WriteString(" | ")
+			}
+			builder.WriteString(fmt.Sprintf("%v", cell))
+		}
+		builder.WriteString("\n")
+	}
+
+	return builder.String()
+}
+
 // 単一範囲のセル編集ハンドラー
 func (gs *GoogleSheets) UpdateCellsHandler(request UpdateCellsRequest) (*mcp.ToolResponse, error) {
 	return gs.UpdateCellsHandlerWithContext(context.Background(), request)
@@ -550,9 +569,12 @@ func (gs *GoogleSheets) UpdateCellsHandlerWithContext(ctx context.Context, reque
 	message += fmt.Sprintf("\n\nPrevious data for range '%s' has been saved (%d rows x %d columns). To undo this change, you can use the previous data.",
 		request.Range, prevRowCount, prevColCount)
 
-	// レスポンスを作成
+	// 変更前のデータを表示用に整形
+	prevDataStr := "\n\nPrevious data details:" + formatTableData(request.Range, prevData.Values)
+
+	// レスポンスを作成（変更前のデータを含める）
 	return mcp.NewToolResponse(
-		mcp.NewTextContent(message),
+		mcp.NewTextContent(message + prevDataStr),
 	), nil
 }
 
@@ -640,9 +662,16 @@ func (gs *GoogleSheets) BatchUpdateCellsHandlerWithContext(ctx context.Context, 
 	}
 	message += "\n\nTo undo these changes, you can use the previous data."
 
-	// レスポンスを作成
+	// 変更前のデータを表示用に整形
+	var prevDataStr strings.Builder
+	prevDataStr.WriteString("\n\nPrevious data details:")
+	for rangeStr, values := range previousData {
+		prevDataStr.WriteString(formatTableData(rangeStr, values))
+	}
+
+	// レスポンスを作成（変更前のデータを含める）
 	return mcp.NewToolResponse(
-		mcp.NewTextContent(message),
+		mcp.NewTextContent(message + prevDataStr.String()),
 	), nil
 }
 
