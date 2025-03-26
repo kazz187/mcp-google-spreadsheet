@@ -58,6 +58,22 @@ type AddColumnsRequest struct {
 	StartColumn     int64  `json:"start_column" jsonschema:"description=column index to start adding (0-based, default: append to end)"`
 }
 
+// 行削除リクエスト
+type DeleteRowsRequest struct {
+	SpreadsheetName string `json:"spreadsheet" jsonschema:"required,description=spreadsheet name"`
+	SheetName       string `json:"sheet" jsonschema:"required,description=sheet name"`
+	Count           int64  `json:"count" jsonschema:"required,description=number of rows to delete"`
+	StartRow        int64  `json:"start_row" jsonschema:"required,description=row index to start deleting (0-based)"`
+}
+
+// 列削除リクエスト
+type DeleteColumnsRequest struct {
+	SpreadsheetName string `json:"spreadsheet" jsonschema:"required,description=spreadsheet name"`
+	SheetName       string `json:"sheet" jsonschema:"required,description=sheet name"`
+	Count           int64  `json:"count" jsonschema:"required,description=number of columns to delete"`
+	StartColumn     int64  `json:"start_column" jsonschema:"required,description=column index to start deleting (0-based)"`
+}
+
 // セル編集リクエスト
 type UpdateCellsRequest struct {
 	SpreadsheetName string          `json:"spreadsheet" jsonschema:"required,description=spreadsheet name"`
@@ -498,6 +514,20 @@ func formatTableData(rangeStr string, values [][]interface{}) string {
 	return builder.String()
 }
 
+// 列インデックス（0-based）をA1表記の列文字（A, B, C, ...）に変換する関数
+func columnIndexToLetter(index int64) string {
+	var result string
+	for {
+		remainder := index % 26
+		result = string('A'+byte(remainder)) + result
+		index = index/26 - 1
+		if index < 0 {
+			break
+		}
+	}
+	return result
+}
+
 // 単一範囲のセル編集ハンドラー
 func (gs *GoogleSheets) UpdateCellsHandler(request UpdateCellsRequest) (*mcp.ToolResponse, error) {
 	return gs.UpdateCellsHandlerWithContext(context.Background(), request)
@@ -745,5 +775,197 @@ func (gs *GoogleSheets) GetSheetDataHandlerWithContext(ctx context.Context, requ
 	// 成功レスポンスを返す
 	return mcp.NewToolResponse(
 		mcp.NewTextContent(result.String()),
+	), nil
+}
+
+// 行削除ハンドラー
+func (gs *GoogleSheets) DeleteRowsHandler(request DeleteRowsRequest) (*mcp.ToolResponse, error) {
+	return gs.DeleteRowsHandlerWithContext(context.Background(), request)
+}
+
+func (gs *GoogleSheets) DeleteRowsHandlerWithContext(ctx context.Context, request DeleteRowsRequest) (*mcp.ToolResponse, error) {
+	// スプレッドシートIDを取得
+	spreadsheetId, err := gs.getSpreadsheetIdWithContext(ctx, request.SpreadsheetName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get spreadsheet ID: %w", err)
+	}
+
+	sheetName := request.SheetName
+
+	// 削除する行数が正の値であることを確認
+	if request.Count <= 0 {
+		return nil, fmt.Errorf("count must be a positive number")
+	}
+
+	// 開始行が指定されていることを確認
+	if request.StartRow < 0 {
+		return nil, fmt.Errorf("start row must be a non-negative number")
+	}
+
+	// シートIDを取得
+	sheetId, err := gs.getSheetIdWithContext(ctx, spreadsheetId, sheetName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get sheet ID: %w", err)
+	}
+
+	// 削除前のデータを取得（削除範囲のデータを保存）
+	service, err := gs.auth.GetSheetsService(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get sheets service: %w", err)
+	}
+
+	// 削除する範囲を指定（A1表記に変換）
+	startRowA1 := request.StartRow + 1 // 0-based to 1-based
+	endRowA1 := startRowA1 + request.Count - 1
+	rangeToDelete := fmt.Sprintf("%s!%d:%d", sheetName, startRowA1, endRowA1)
+
+	// 削除前のデータを取得
+	prevData, err := service.Spreadsheets.Values.Get(spreadsheetId, rangeToDelete).Do()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get data before deletion: %w", err)
+	}
+
+	// 行を削除するリクエストを作成
+	batchRequest := &sheets.BatchUpdateSpreadsheetRequest{
+		Requests: []*sheets.Request{
+			{
+				DeleteDimension: &sheets.DeleteDimensionRequest{
+					Range: &sheets.DimensionRange{
+						SheetId:    sheetId,
+						Dimension:  "ROWS",
+						StartIndex: request.StartRow,
+						EndIndex:   request.StartRow + request.Count,
+					},
+				},
+			},
+		},
+	}
+
+	// 行を削除
+	service, err = gs.auth.GetSheetsService(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get sheets service: %w", err)
+	}
+
+	_, err = service.Spreadsheets.BatchUpdate(spreadsheetId, batchRequest).Do()
+	if err != nil {
+		return nil, fmt.Errorf("failed to delete rows: %w", err)
+	}
+
+	// 成功メッセージを作成
+	message := fmt.Sprintf("Successfully deleted %d rows starting at index %d in sheet '%s' of spreadsheet '%s'",
+		request.Count, request.StartRow, request.SheetName, request.SpreadsheetName)
+
+	// 削除前のデータの情報をメッセージに含める
+	prevRowCount := len(prevData.Values)
+	prevColCount := 0
+	if prevRowCount > 0 {
+		prevColCount = len(prevData.Values[0])
+	}
+
+	message += fmt.Sprintf("\n\nDeleted data (%d rows x %d columns) has been saved. To undo this change, you can use the saved data.",
+		prevRowCount, prevColCount)
+
+	// 削除前のデータを表示用に整形
+	prevDataStr := "\n\nDeleted data details:" + formatTableData(fmt.Sprintf("%d:%d", startRowA1, endRowA1), prevData.Values)
+
+	return mcp.NewToolResponse(
+		mcp.NewTextContent(message + prevDataStr),
+	), nil
+}
+
+// 列削除ハンドラー
+func (gs *GoogleSheets) DeleteColumnsHandler(request DeleteColumnsRequest) (*mcp.ToolResponse, error) {
+	return gs.DeleteColumnsHandlerWithContext(context.Background(), request)
+}
+
+func (gs *GoogleSheets) DeleteColumnsHandlerWithContext(ctx context.Context, request DeleteColumnsRequest) (*mcp.ToolResponse, error) {
+	// スプレッドシートIDを取得
+	spreadsheetId, err := gs.getSpreadsheetIdWithContext(ctx, request.SpreadsheetName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get spreadsheet ID: %w", err)
+	}
+
+	sheetName := request.SheetName
+
+	// 削除する列数が正の値であることを確認
+	if request.Count <= 0 {
+		return nil, fmt.Errorf("count must be a positive number")
+	}
+
+	// 開始列が指定されていることを確認
+	if request.StartColumn < 0 {
+		return nil, fmt.Errorf("start column must be a non-negative number")
+	}
+
+	// シートIDを取得
+	sheetId, err := gs.getSheetIdWithContext(ctx, spreadsheetId, sheetName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get sheet ID: %w", err)
+	}
+
+	// 削除前のデータを取得（削除範囲のデータを保存）
+	service, err := gs.auth.GetSheetsService(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get sheets service: %w", err)
+	}
+
+	// 削除する範囲を指定（A1表記に変換）
+	startColA1 := columnIndexToLetter(request.StartColumn)
+	endColA1 := columnIndexToLetter(request.StartColumn + request.Count - 1)
+	rangeToDelete := fmt.Sprintf("%s!%s:%s", sheetName, startColA1, endColA1)
+
+	// 削除前のデータを取得
+	prevData, err := service.Spreadsheets.Values.Get(spreadsheetId, rangeToDelete).Do()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get data before deletion: %w", err)
+	}
+
+	// 列を削除するリクエストを作成
+	batchRequest := &sheets.BatchUpdateSpreadsheetRequest{
+		Requests: []*sheets.Request{
+			{
+				DeleteDimension: &sheets.DeleteDimensionRequest{
+					Range: &sheets.DimensionRange{
+						SheetId:    sheetId,
+						Dimension:  "COLUMNS",
+						StartIndex: request.StartColumn,
+						EndIndex:   request.StartColumn + request.Count,
+					},
+				},
+			},
+		},
+	}
+
+	// 列を削除
+	service, err = gs.auth.GetSheetsService(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get sheets service: %w", err)
+	}
+
+	_, err = service.Spreadsheets.BatchUpdate(spreadsheetId, batchRequest).Do()
+	if err != nil {
+		return nil, fmt.Errorf("failed to delete columns: %w", err)
+	}
+
+	// 成功メッセージを作成
+	message := fmt.Sprintf("Successfully deleted %d columns starting at index %d in sheet '%s' of spreadsheet '%s'",
+		request.Count, request.StartColumn, request.SheetName, request.SpreadsheetName)
+
+	// 削除前のデータの情報をメッセージに含める
+	prevRowCount := len(prevData.Values)
+	prevColCount := 0
+	if prevRowCount > 0 {
+		prevColCount = len(prevData.Values[0])
+	}
+
+	message += fmt.Sprintf("\n\nDeleted data (%d rows x %d columns) has been saved. To undo this change, you can use the saved data.",
+		prevRowCount, prevColCount)
+
+	// 削除前のデータを表示用に整形
+	prevDataStr := "\n\nDeleted data details:" + formatTableData(fmt.Sprintf("%s:%s", startColA1, endColA1), prevData.Values)
+
+	return mcp.NewToolResponse(
+		mcp.NewTextContent(message + prevDataStr),
 	), nil
 }

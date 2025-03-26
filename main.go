@@ -82,6 +82,14 @@ func main() {
 		logger.ErrorContext(ctx, "failed to register tool batch_update_cells", "error", err)
 		os.Exit(1)
 	}
+	if err := server.RegisterTool("delete_rows", "Delete rows from sheet in google sheet", sheet.DeleteRowsHandler); err != nil {
+		logger.ErrorContext(ctx, "failed to register tool delete_rows", "error", err)
+		os.Exit(1)
+	}
+	if err := server.RegisterTool("delete_columns", "Delete columns from sheet in google sheet", sheet.DeleteColumnsHandler); err != nil {
+		logger.ErrorContext(ctx, "failed to register tool delete_columns", "error", err)
+		os.Exit(1)
+	}
 	if err := server.Serve(); err != nil {
 		logger.ErrorContext(ctx, "failed to serve", "error", err)
 		os.Exit(1)
