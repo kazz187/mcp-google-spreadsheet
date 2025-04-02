@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 
 	mcp "github.com/metoro-io/mcp-golang"
@@ -48,14 +49,14 @@ type AddRowsRequest struct {
 	SpreadsheetName string `json:"spreadsheet" jsonschema:"required,description=spreadsheet name"`
 	SheetName       string `json:"sheet" jsonschema:"required,description=sheet name"`
 	Count           int64  `json:"count" jsonschema:"required,description=number of rows to add"`
-	StartRow        int64  `json:"start_row" jsonschema:"description=row index to start adding (0-based, default: append to end)"`
+	StartRow        int64  `json:"start_row" jsonschema:"description=row index to start adding (1-based)"`
 }
 
 type AddColumnsRequest struct {
 	SpreadsheetName string `json:"spreadsheet" jsonschema:"required,description=spreadsheet name"`
 	SheetName       string `json:"sheet" jsonschema:"required,description=sheet name"`
 	Count           int64  `json:"count" jsonschema:"required,description=number of columns to add"`
-	StartColumn     int64  `json:"start_column" jsonschema:"description=column index to start adding (0-based, default: append to end)"`
+	StartColumn     int64  `json:"start_column" jsonschema:"description=column index to start adding (1-based)"`
 }
 
 // 行削除リクエスト
@@ -63,7 +64,7 @@ type DeleteRowsRequest struct {
 	SpreadsheetName string `json:"spreadsheet" jsonschema:"required,description=spreadsheet name"`
 	SheetName       string `json:"sheet" jsonschema:"required,description=sheet name"`
 	Count           int64  `json:"count" jsonschema:"required,description=number of rows to delete"`
-	StartRow        int64  `json:"start_row" jsonschema:"required,description=row index to start deleting (0-based)"`
+	StartRow        int64  `json:"start_row" jsonschema:"required,description=row index to start deleting (1-based)"`
 }
 
 // 列削除リクエスト
@@ -71,7 +72,7 @@ type DeleteColumnsRequest struct {
 	SpreadsheetName string `json:"spreadsheet" jsonschema:"required,description=spreadsheet name"`
 	SheetName       string `json:"sheet" jsonschema:"required,description=sheet name"`
 	Count           int64  `json:"count" jsonschema:"required,description=number of columns to delete"`
-	StartColumn     int64  `json:"start_column" jsonschema:"required,description=column index to start deleting (0-based)"`
+	StartColumn     int64  `json:"start_column" jsonschema:"required,description=column index to start deleting (1-based)"`
 }
 
 // セル編集リクエスト
@@ -343,6 +344,10 @@ func (gs *GoogleSheets) AddRowsHandlerWithContext(ctx context.Context, request A
 		return nil, fmt.Errorf("count must be a positive number")
 	}
 
+	if request.StartRow <= 0 {
+		return nil, fmt.Errorf("start_row must be a positive number")
+	}
+
 	// シートIDを取得
 	sheetId, err := gs.getSheetIdWithContext(ctx, spreadsheetId, sheetName)
 	if err != nil {
@@ -352,36 +357,20 @@ func (gs *GoogleSheets) AddRowsHandlerWithContext(ctx context.Context, request A
 	// リクエストを作成
 	var batchRequest *sheets.BatchUpdateSpreadsheetRequest
 
-	// StartRowが指定されている場合は、特定の位置に行を挿入
-	if request.StartRow > 0 {
-		batchRequest = &sheets.BatchUpdateSpreadsheetRequest{
-			Requests: []*sheets.Request{
-				{
-					InsertDimension: &sheets.InsertDimensionRequest{
-						Range: &sheets.DimensionRange{
-							SheetId:    sheetId,
-							Dimension:  "ROWS",
-							StartIndex: request.StartRow,
-							EndIndex:   request.StartRow + request.Count,
-						},
-						InheritFromBefore: false,
+	batchRequest = &sheets.BatchUpdateSpreadsheetRequest{
+		Requests: []*sheets.Request{
+			{
+				InsertDimension: &sheets.InsertDimensionRequest{
+					Range: &sheets.DimensionRange{
+						SheetId:    sheetId,
+						Dimension:  "ROWS",
+						StartIndex: request.StartRow - 1,
+						EndIndex:   request.StartRow + request.Count - 1,
 					},
+					InheritFromBefore: true,
 				},
 			},
-		}
-	} else {
-		// 指定がない場合は末尾に追加
-		batchRequest = &sheets.BatchUpdateSpreadsheetRequest{
-			Requests: []*sheets.Request{
-				{
-					AppendDimension: &sheets.AppendDimensionRequest{
-						SheetId:   sheetId,
-						Dimension: "ROWS",
-						Length:    request.Count,
-					},
-				},
-			},
-		}
+		},
 	}
 
 	// 行を追加
@@ -428,6 +417,10 @@ func (gs *GoogleSheets) AddColumnsHandlerWithContext(ctx context.Context, reques
 		return nil, fmt.Errorf("count must be a positive number")
 	}
 
+	if request.StartColumn <= 0 {
+		return nil, fmt.Errorf("start_column must be a positive number")
+	}
+
 	// シートIDを取得
 	sheetId, err := gs.getSheetIdWithContext(ctx, spreadsheetId, sheetName)
 	if err != nil {
@@ -437,36 +430,20 @@ func (gs *GoogleSheets) AddColumnsHandlerWithContext(ctx context.Context, reques
 	// リクエストを作成
 	var batchRequest *sheets.BatchUpdateSpreadsheetRequest
 
-	// StartColumnが指定されている場合は、特定の位置に列を挿入
-	if request.StartColumn > 0 {
-		batchRequest = &sheets.BatchUpdateSpreadsheetRequest{
-			Requests: []*sheets.Request{
-				{
-					InsertDimension: &sheets.InsertDimensionRequest{
-						Range: &sheets.DimensionRange{
-							SheetId:    sheetId,
-							Dimension:  "COLUMNS",
-							StartIndex: request.StartColumn,
-							EndIndex:   request.StartColumn + request.Count,
-						},
-						InheritFromBefore: false,
+	batchRequest = &sheets.BatchUpdateSpreadsheetRequest{
+		Requests: []*sheets.Request{
+			{
+				InsertDimension: &sheets.InsertDimensionRequest{
+					Range: &sheets.DimensionRange{
+						SheetId:    sheetId,
+						Dimension:  "COLUMNS",
+						StartIndex: request.StartColumn - 1,
+						EndIndex:   request.StartColumn + request.Count - 1,
 					},
+					InheritFromBefore: true,
 				},
 			},
-		}
-	} else {
-		// 指定がない場合は末尾に追加
-		batchRequest = &sheets.BatchUpdateSpreadsheetRequest{
-			Requests: []*sheets.Request{
-				{
-					AppendDimension: &sheets.AppendDimensionRequest{
-						SheetId:   sheetId,
-						Dimension: "COLUMNS",
-						Length:    request.Count,
-					},
-				},
-			},
-		}
+		},
 	}
 
 	// 列を追加
@@ -496,26 +473,40 @@ func (gs *GoogleSheets) AddColumnsHandlerWithContext(ctx context.Context, reques
 }
 
 // 2次元配列のデータを表形式の文字列に変換する関数
-func formatTableData(rangeStr string, values [][]interface{}) string {
+func formatTableData(startColumn, startRow int64, values [][]interface{}) string {
+
+	maxWidth := 0
+	for _, row := range values {
+		if width := len(row); width > maxWidth {
+			maxWidth = width
+		}
+	}
 	var builder strings.Builder
-	builder.WriteString(fmt.Sprintf("\nRange: %s\n", rangeStr))
+	headers := make([]string, 0, maxWidth+1)
+	borders := make([]string, 0, maxWidth+1)
+	headers = append(headers, " ")
+	borders = append(borders, "---")
+	for i := 0; i < maxWidth; i++ {
+		headers = append(headers, fmt.Sprintf("**%s**", columnIndexToLetter(startColumn+int64(i))))
+		borders = append(borders, "---")
+	}
+	builder.WriteString("| " + strings.Join(headers, " | ") + "|\n")
+	builder.WriteString("|" + strings.Join(borders, "|") + "|\n")
 
 	for i, row := range values {
-		builder.WriteString(fmt.Sprintf("Row %d: ", i+1))
+		rows := make([]string, maxWidth+1)
+		rows[0] = fmt.Sprintf("**%d**", startRow+int64(i))
 		for j, cell := range row {
-			if j > 0 {
-				builder.WriteString(" | ")
-			}
-			builder.WriteString(fmt.Sprintf("%v", cell))
+			rows[j+1] = fmt.Sprintf("%v", cell)
 		}
-		builder.WriteString("\n")
+		builder.WriteString("| " + strings.Join(rows, " | ") + " |\n")
 	}
-
 	return builder.String()
 }
 
 // 列インデックス（0-based）をA1表記の列文字（A, B, C, ...）に変換する関数
 func columnIndexToLetter(index int64) string {
+	index = index - 1
 	var result string
 	for {
 		remainder := index % 26
@@ -569,8 +560,10 @@ func (gs *GoogleSheets) UpdateCellsHandlerWithContext(ctx context.Context, reque
 	// 変更前のデータの行数と列数を計算
 	prevRowCount := len(prevData.Values)
 	prevColCount := 0
-	if prevRowCount > 0 {
-		prevColCount = len(prevData.Values[0])
+	for _, row := range prevData.Values {
+		if colCount := len(row); colCount > prevColCount {
+			prevColCount = colCount
+		}
 	}
 
 	// 値を更新するリクエストを作成
@@ -600,12 +593,55 @@ func (gs *GoogleSheets) UpdateCellsHandlerWithContext(ctx context.Context, reque
 		request.Range, prevRowCount, prevColCount)
 
 	// 変更前のデータを表示用に整形
-	prevDataStr := "\n\nPrevious data details:" + formatTableData(request.Range, prevData.Values)
+	col, row, err := startIndexFromRange(request.Range)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse range: %w", err)
+	}
+	prevDataStr := "\n\nPrevious data details:\n\n" + formatTableData(col, row, prevData.Values)
 
 	// レスポンスを作成（変更前のデータを含める）
 	return mcp.NewToolResponse(
 		mcp.NewTextContent(message + prevDataStr),
 	), nil
+}
+
+func startIndexFromRange(rangeStr string) (int64, int64, error) {
+	// 範囲が指定されていない場合はエラー
+	if rangeStr == "" {
+		return 0, 0, fmt.Errorf("range must be specified")
+	}
+
+	start := ""
+	startEnd := strings.Split(rangeStr, ":")
+	if len(startEnd) >= 1 {
+		start = startEnd[0]
+	} else {
+		return 0, 0, fmt.Errorf("invalid range: %s", rangeStr)
+	}
+
+	// ABC123 のような形式を分割
+	var colStr, rowStr string
+	i := 0
+	for _, c := range start {
+		if c >= 'A' && c <= 'Z' {
+			colStr += string(c)
+			i++
+		} else {
+			break
+		}
+	}
+	rowStr = start[i:]
+
+	var col, row int64
+	for _, c := range colStr {
+		col = col*26 + int64(c-'A'+1)
+	}
+	row, err := strconv.ParseInt(rowStr, 10, 64)
+	if err != nil {
+		return 0, 0, fmt.Errorf("invalid range: %s", rangeStr)
+	}
+
+	return col, row, nil
 }
 
 // 複数範囲のセル一括編集ハンドラー
@@ -694,9 +730,13 @@ func (gs *GoogleSheets) BatchUpdateCellsHandlerWithContext(ctx context.Context, 
 
 	// 変更前のデータを表示用に整形
 	var prevDataStr strings.Builder
-	prevDataStr.WriteString("\n\nPrevious data details:")
+	prevDataStr.WriteString("\n\nPrevious data details:\n\n")
 	for rangeStr, values := range previousData {
-		prevDataStr.WriteString(formatTableData(rangeStr, values))
+		col, row, err := startIndexFromRange(rangeStr)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse range: %w", err)
+		}
+		prevDataStr.WriteString(formatTableData(col, row, values))
 	}
 
 	// レスポンスを作成（変更前のデータを含める）
@@ -753,22 +793,25 @@ func (gs *GoogleSheets) GetSheetDataHandlerWithContext(ctx context.Context, requ
 	}
 
 	// 各行のデータを表示
-	for i, row := range resp.Values {
-		result.WriteString(fmt.Sprintf("Row %d: ", i+1))
-		for j, cell := range row {
-			if j > 0 {
-				result.WriteString(" | ")
-			}
-			result.WriteString(fmt.Sprintf("%v", cell))
+	var (
+		startCol int64 = 1
+		startRow int64 = 1
+	)
+	if request.Range != "" {
+		startCol, startRow, err = startIndexFromRange(request.Range)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse range: %w", err)
 		}
-		result.WriteString("\n")
 	}
+	result.WriteString(formatTableData(startCol, startRow, resp.Values))
 
 	// 行と列の数を表示
 	rowCount := len(resp.Values)
 	colCount := 0
-	if rowCount > 0 {
-		colCount = len(resp.Values[0])
+	for _, row := range resp.Values {
+		if count := len(row); count > colCount {
+			colCount = count
+		}
 	}
 	result.WriteString(fmt.Sprintf("\nTotal: %d rows x %d columns\n", rowCount, colCount))
 
@@ -798,8 +841,8 @@ func (gs *GoogleSheets) DeleteRowsHandlerWithContext(ctx context.Context, reques
 	}
 
 	// 開始行が指定されていることを確認
-	if request.StartRow < 0 {
-		return nil, fmt.Errorf("start row must be a non-negative number")
+	if request.StartRow <= 0 {
+		return nil, fmt.Errorf("start row must be a positive number")
 	}
 
 	// シートIDを取得
@@ -815,7 +858,7 @@ func (gs *GoogleSheets) DeleteRowsHandlerWithContext(ctx context.Context, reques
 	}
 
 	// 削除する範囲を指定（A1表記に変換）
-	startRowA1 := request.StartRow + 1 // 0-based to 1-based
+	startRowA1 := request.StartRow
 	endRowA1 := startRowA1 + request.Count - 1
 	rangeToDelete := fmt.Sprintf("%s!%d:%d", sheetName, startRowA1, endRowA1)
 
@@ -833,8 +876,8 @@ func (gs *GoogleSheets) DeleteRowsHandlerWithContext(ctx context.Context, reques
 					Range: &sheets.DimensionRange{
 						SheetId:    sheetId,
 						Dimension:  "ROWS",
-						StartIndex: request.StartRow,
-						EndIndex:   request.StartRow + request.Count,
+						StartIndex: request.StartRow - 1,
+						EndIndex:   request.StartRow + request.Count - 1,
 					},
 				},
 			},
@@ -867,7 +910,8 @@ func (gs *GoogleSheets) DeleteRowsHandlerWithContext(ctx context.Context, reques
 		prevRowCount, prevColCount)
 
 	// 削除前のデータを表示用に整形
-	prevDataStr := "\n\nDeleted data details:" + formatTableData(fmt.Sprintf("%d:%d", startRowA1, endRowA1), prevData.Values)
+
+	prevDataStr := "\n\nDeleted data details:\n\n" + formatTableData(1, request.StartRow, prevData.Values)
 
 	return mcp.NewToolResponse(
 		mcp.NewTextContent(message + prevDataStr),
@@ -894,8 +938,8 @@ func (gs *GoogleSheets) DeleteColumnsHandlerWithContext(ctx context.Context, req
 	}
 
 	// 開始列が指定されていることを確認
-	if request.StartColumn < 0 {
-		return nil, fmt.Errorf("start column must be a non-negative number")
+	if request.StartColumn <= 0 {
+		return nil, fmt.Errorf("start column must be a positive number")
 	}
 
 	// シートIDを取得
@@ -929,8 +973,8 @@ func (gs *GoogleSheets) DeleteColumnsHandlerWithContext(ctx context.Context, req
 					Range: &sheets.DimensionRange{
 						SheetId:    sheetId,
 						Dimension:  "COLUMNS",
-						StartIndex: request.StartColumn,
-						EndIndex:   request.StartColumn + request.Count,
+						StartIndex: request.StartColumn - 1,
+						EndIndex:   request.StartColumn + request.Count - 1,
 					},
 				},
 			},
@@ -955,15 +999,17 @@ func (gs *GoogleSheets) DeleteColumnsHandlerWithContext(ctx context.Context, req
 	// 削除前のデータの情報をメッセージに含める
 	prevRowCount := len(prevData.Values)
 	prevColCount := 0
-	if prevRowCount > 0 {
-		prevColCount = len(prevData.Values[0])
+	for _, row := range prevData.Values {
+		if width := len(row); width > prevColCount {
+			prevColCount = width
+		}
 	}
 
 	message += fmt.Sprintf("\n\nDeleted data (%d rows x %d columns) has been saved. To undo this change, you can use the saved data.",
 		prevRowCount, prevColCount)
 
 	// 削除前のデータを表示用に整形
-	prevDataStr := "\n\nDeleted data details:" + formatTableData(fmt.Sprintf("%s:%s", startColA1, endColA1), prevData.Values)
+	prevDataStr := "\n\nDeleted data details:\n\n" + formatTableData(request.StartColumn, 1, prevData.Values)
 
 	return mcp.NewToolResponse(
 		mcp.NewTextContent(message + prevDataStr),
