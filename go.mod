@@ -4,7 +4,7 @@ go 1.24.0
 
 require (
 	github.com/kelseyhightower/envconfig v1.4.0
-	github.com/metoro-io/mcp-golang v0.8.0
+	github.com/metoro-io/mcp-golang v0.11.0
 	golang.org/x/oauth2 v0.28.0
 	google.golang.org/api v0.226.0
 )
@@ -44,5 +44,3 @@ require (
 	google.golang.org/protobuf v1.36.5 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
-
-replace github.com/metoro-io/mcp-golang => github.com/verbrio/mcp-golang v0.0.0-20250128155237-94d1d5ad0bfe
