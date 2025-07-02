@@ -6,7 +6,7 @@ import (
 	"path"
 	"strings"
 
-	mcp "github.com/metoro-io/mcp-golang"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"google.golang.org/api/drive/v3"
 )
 
@@ -23,18 +23,32 @@ func NewGoogleDrive(cfg *Config, auth *GoogleAuth) (*GoogleDrive, error) {
 }
 
 type ListFilesRequest struct {
-	Path string `json:"path" jsonschema:"description=directory path (default: root directory)"`
+	Path string `json:"path"`
 }
+
+var ListFilesInputSchema = mcp.Input(
+	mcp.Property("path", mcp.Description("directory path (default: root directory)")),
+)
 
 type CopyFileRequest struct {
-	SrcPath string `json:"src_path" jsonschema:"required,description=source path"`
-	DstPath string `json:"dst_path" jsonschema:"required,description=destination path"`
+	SrcPath string `json:"src_path"`
+	DstPath string `json:"dst_path"`
 }
 
+var CopyFileInputSchema = mcp.Input(
+	mcp.Property("src_path", mcp.Description("source path"), mcp.Required(true)),
+	mcp.Property("dst_path", mcp.Description("destination path"), mcp.Required(true)),
+)
+
 type RenameFileRequest struct {
-	Path    string `json:"path" jsonschema:"required,description=file path"`
-	NewName string `json:"new_name" jsonschema:"required,description=new file name"`
+	Path    string `json:"path"`
+	NewName string `json:"new_name"`
 }
+
+var RenameFileInputSchema = mcp.Input(
+	mcp.Property("path", mcp.Description("file path"), mcp.Required(true)),
+	mcp.Property("new_name", mcp.Description("new file name"), mcp.Required(true)),
+)
 
 // パスからファイルIDを取得する
 func (gd *GoogleDrive) getFileIDByPath(ctx context.Context, filePath string) (string, error) {
@@ -127,13 +141,9 @@ func (gd *GoogleDrive) getParentIDAndFileName(ctx context.Context, filePath stri
 	return parentID, fileName, nil
 }
 
-func (gd *GoogleDrive) ListFilesHandler(request ListFilesRequest) (*mcp.ToolResponse, error) {
-	return gd.ListFilesHandlerWithContext(context.Background(), request)
-}
-
-func (gd *GoogleDrive) ListFilesHandlerWithContext(ctx context.Context, request ListFilesRequest) (*mcp.ToolResponse, error) {
+func (gd *GoogleDrive) ListFilesHandler(ctx context.Context, cc *mcp.ServerSession, params *mcp.CallToolParamsFor[ListFilesRequest]) (*mcp.CallToolResultFor[any], error) {
 	// パスが指定されていない場合はルートディレクトリを使用
-	dirPath := request.Path
+	dirPath := params.Arguments.Path
 	if dirPath == "" {
 		dirPath = "."
 	}
@@ -215,18 +225,14 @@ func (gd *GoogleDrive) ListFilesHandlerWithContext(ctx context.Context, request 
 	result.WriteString(fmt.Sprintf("\nTotal: %d folders, %d files\n", folderCount, fileCount))
 
 	// 成功レスポンスを返す
-	return mcp.NewToolResponse(
-		mcp.NewTextContent(result.String()),
-	), nil
+	return &mcp.CallToolResultFor[any]{
+		Content: []mcp.Content{&mcp.TextContent{Text: result.String()}},
+	}, nil
 }
 
-func (gd *GoogleDrive) CopyFileHandler(request CopyFileRequest) (*mcp.ToolResponse, error) {
-	return gd.CopyFileHandlerWithContext(context.Background(), request)
-}
-
-func (gd *GoogleDrive) CopyFileHandlerWithContext(ctx context.Context, request CopyFileRequest) (*mcp.ToolResponse, error) {
+func (gd *GoogleDrive) CopyFileHandler(ctx context.Context, cc *mcp.ServerSession, params *mcp.CallToolParamsFor[CopyFileRequest]) (*mcp.CallToolResultFor[any], error) {
 	// ソースファイルのIDを取得
-	srcFileID, err := gd.getFileIDByPathWithContext(ctx, request.SrcPath)
+	srcFileID, err := gd.getFileIDByPathWithContext(ctx, params.Arguments.SrcPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get source file ID: %w", err)
 	}
@@ -246,7 +252,7 @@ func (gd *GoogleDrive) CopyFileHandlerWithContext(ctx context.Context, request C
 	}
 
 	// 宛先の親フォルダIDとファイル名を取得
-	dstParentID, dstFileName, err := gd.getParentIDAndFileName(ctx, request.DstPath)
+	dstParentID, dstFileName, err := gd.getParentIDAndFileName(ctx, params.Arguments.DstPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get destination parent ID and file name: %w", err)
 	}
@@ -276,18 +282,14 @@ func (gd *GoogleDrive) CopyFileHandlerWithContext(ctx context.Context, request C
 	}
 
 	// 成功レスポンスを返す
-	return mcp.NewToolResponse(
-		mcp.NewTextContent(fmt.Sprintf("File copied successfully. New file ID: %s", result.Id)),
-	), nil
+	return &mcp.CallToolResultFor[any]{
+		Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("File copied successfully. New file ID: %s", result.Id)}},
+	}, nil
 }
 
-func (gd *GoogleDrive) RenameFileHandler(request RenameFileRequest) (*mcp.ToolResponse, error) {
-	return gd.RenameFileHandlerWithContext(context.Background(), request)
-}
-
-func (gd *GoogleDrive) RenameFileHandlerWithContext(ctx context.Context, request RenameFileRequest) (*mcp.ToolResponse, error) {
+func (gd *GoogleDrive) RenameFileHandler(ctx context.Context, cc *mcp.ServerSession, params *mcp.CallToolParamsFor[RenameFileRequest]) (*mcp.CallToolResultFor[any], error) {
 	// ファイルのIDを取得
-	fileID, err := gd.getFileIDByPathWithContext(ctx, request.Path)
+	fileID, err := gd.getFileIDByPathWithContext(ctx, params.Arguments.Path)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get file ID: %w", err)
 	}
@@ -307,13 +309,13 @@ func (gd *GoogleDrive) RenameFileHandlerWithContext(ctx context.Context, request
 	}
 
 	// 新しい名前が空でないことを確認
-	if request.NewName == "" {
+	if params.Arguments.NewName == "" {
 		return nil, fmt.Errorf("new file name cannot be empty")
 	}
 
 	// ファイル名を更新
 	updateFile := &drive.File{
-		Name: request.NewName,
+		Name: params.Arguments.NewName,
 	}
 
 	// ファイル名を変更（共有ドライブ対応）
@@ -331,7 +333,7 @@ func (gd *GoogleDrive) RenameFileHandlerWithContext(ctx context.Context, request
 	}
 
 	// 成功レスポンスを返す
-	return mcp.NewToolResponse(
-		mcp.NewTextContent(fmt.Sprintf("File renamed successfully to '%s'", result.Name)),
-	), nil
+	return &mcp.CallToolResultFor[any]{
+		Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("File renamed successfully to '%s'", result.Name)}},
+	}, nil
 }
