@@ -3,10 +3,11 @@ package main
 import (
 	"context"
 	"fmt"
+	"path"
 	"strconv"
 	"strings"
 
-	mcp "github.com/metoro-io/mcp-golang"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"google.golang.org/api/sheets/v4"
 )
 
@@ -23,72 +24,136 @@ func NewGoogleSheets(cfg *Config, auth *GoogleAuth) (*GoogleSheets, error) {
 }
 
 type CopySheetRequest struct {
-	SrcSpreadsheetName string `json:"src_spreadsheet" jsonschema:"required,description=source spreadsheet name"`
-	SrcSheetName       string `json:"src_sheet" jsonschema:"required,description=source sheet name"`
-	DstSpreadsheetName string `json:"dst_spreadsheet" jsonschema:"required,description=destination spreadsheet name"`
-	DstSheetName       string `json:"dst_sheet" jsonschema:"required,description=destination sheet name"`
+	SrcSpreadsheetName string `json:"src_spreadsheet"`
+	SrcSheetName       string `json:"src_sheet"`
+	DstSpreadsheetName string `json:"dst_spreadsheet"`
+	DstSheetName       string `json:"dst_sheet"`
 }
+
+var CopySheetInputSchema = mcp.Input(
+	mcp.Property("src_spreadsheet", mcp.Description("source spreadsheet name"), mcp.Required(true)),
+	mcp.Property("src_sheet", mcp.Description("source sheet name"), mcp.Required(true)),
+	mcp.Property("dst_spreadsheet", mcp.Description("destination spreadsheet name"), mcp.Required(true)),
+	mcp.Property("dst_sheet", mcp.Description("destination sheet name"), mcp.Required(true)),
+)
 
 type RenameSheetRequest struct {
-	SpreadsheetName string `json:"spreadsheet" jsonschema:"required,description=spreadsheet name"`
-	SheetName       string `json:"sheet" jsonschema:"required,description=sheet name"`
-	NewName         string `json:"new_name" jsonschema:"required,description=new sheet name"`
+	SpreadsheetName string `json:"spreadsheet"`
+	SheetName       string `json:"sheet"`
+	NewName         string `json:"new_name"`
 }
+
+var RenameSheetInputSchema = mcp.Input(
+	mcp.Property("spreadsheet", mcp.Description("spreadsheet name"), mcp.Required(true)),
+	mcp.Property("sheet", mcp.Description("sheet name"), mcp.Required(true)),
+	mcp.Property("new_name", mcp.Description("new sheet name"), mcp.Required(true)),
+)
 
 type ListSheetsRequest struct {
-	SpreadsheetName string `json:"spreadsheet" jsonschema:"required,description=spreadsheet name"`
+	SpreadsheetName string `json:"spreadsheet"`
 }
+
+var ListSheetsInputSchema = mcp.Input(
+	mcp.Property("spreadsheet", mcp.Description("spreadsheet name"), mcp.Required(true)),
+)
 
 type GetSheetDataRequest struct {
-	SpreadsheetName string `json:"spreadsheet" jsonschema:"required,description=spreadsheet name"`
-	SheetName       string `json:"sheet" jsonschema:"required,description=sheet name"`
-	Range           string `json:"range" jsonschema:"description=cell range (e.g. A1:C10, default: all data)"`
+	SpreadsheetName string `json:"spreadsheet"`
+	SheetName       string `json:"sheet"`
+	Range           string `json:"range"`
 }
+
+var GetSheetDataInputSchema = mcp.Input(
+	mcp.Property("spreadsheet", mcp.Description("spreadsheet name"), mcp.Required(true)),
+	mcp.Property("sheet", mcp.Description("sheet name"), mcp.Required(true)),
+	mcp.Property("range", mcp.Description("cell range (e.g. A1:C10, default: all data)")),
+)
 
 type AddRowsRequest struct {
-	SpreadsheetName string `json:"spreadsheet" jsonschema:"required,description=spreadsheet name"`
-	SheetName       string `json:"sheet" jsonschema:"required,description=sheet name"`
-	Count           int64  `json:"count" jsonschema:"required,description=number of rows to add"`
-	StartRow        int64  `json:"start_row" jsonschema:"description=row index to start adding (1-based)"`
+	SpreadsheetName string `json:"spreadsheet"`
+	SheetName       string `json:"sheet"`
+	Count           int64  `json:"count"`
+	StartRow        int64  `json:"start_row"`
 }
 
+var AddRowsInputSchema = mcp.Input(
+	mcp.Property("spreadsheet", mcp.Description("spreadsheet name"), mcp.Required(true)),
+	mcp.Property("sheet", mcp.Description("sheet name"), mcp.Required(true)),
+	mcp.Property("count", mcp.Description("number of rows to add"), mcp.Required(true)),
+	mcp.Property("start_row", mcp.Description("row index to start adding (1-based)")),
+)
+
 type AddColumnsRequest struct {
-	SpreadsheetName string `json:"spreadsheet" jsonschema:"required,description=spreadsheet name"`
-	SheetName       string `json:"sheet" jsonschema:"required,description=sheet name"`
-	Count           int64  `json:"count" jsonschema:"required,description=number of columns to add"`
-	StartColumn     int64  `json:"start_column" jsonschema:"description=column index to start adding (1-based)"`
+	SpreadsheetName string `json:"spreadsheet"`
+	SheetName       string `json:"sheet"`
+	Count           int64  `json:"count"`
+	StartColumn     int64  `json:"start_column"`
 }
+
+var AddColumnsInputSchema = mcp.Input(
+	mcp.Property("spreadsheet", mcp.Description("spreadsheet name"), mcp.Required(true)),
+	mcp.Property("sheet", mcp.Description("sheet name"), mcp.Required(true)),
+	mcp.Property("count", mcp.Description("number of columns to add"), mcp.Required(true)),
+	mcp.Property("start_column", mcp.Description("column index to start adding (1-based)")),
+)
 
 // 行削除リクエスト
 type DeleteRowsRequest struct {
-	SpreadsheetName string `json:"spreadsheet" jsonschema:"required,description=spreadsheet name"`
-	SheetName       string `json:"sheet" jsonschema:"required,description=sheet name"`
-	Count           int64  `json:"count" jsonschema:"required,description=number of rows to delete"`
-	StartRow        int64  `json:"start_row" jsonschema:"required,description=row index to start deleting (1-based)"`
+	SpreadsheetName string `json:"spreadsheet"`
+	SheetName       string `json:"sheet"`
+	Count           int64  `json:"count"`
+	StartRow        int64  `json:"start_row"`
 }
+
+var DeleteRowsInputSchema = mcp.Input(
+	mcp.Property("spreadsheet", mcp.Description("spreadsheet name"), mcp.Required(true)),
+	mcp.Property("sheet", mcp.Description("sheet name"), mcp.Required(true)),
+	mcp.Property("count", mcp.Description("number of rows to delete"), mcp.Required(true)),
+	mcp.Property("start_row", mcp.Description("row index to start deleting (1-based)"), mcp.Required(true)),
+)
 
 // 列削除リクエスト
 type DeleteColumnsRequest struct {
-	SpreadsheetName string `json:"spreadsheet" jsonschema:"required,description=spreadsheet name"`
-	SheetName       string `json:"sheet" jsonschema:"required,description=sheet name"`
-	Count           int64  `json:"count" jsonschema:"required,description=number of columns to delete"`
-	StartColumn     int64  `json:"start_column" jsonschema:"required,description=column index to start deleting (1-based)"`
+	SpreadsheetName string `json:"spreadsheet"`
+	SheetName       string `json:"sheet"`
+	Count           int64  `json:"count"`
+	StartColumn     int64  `json:"start_column"`
 }
+
+var DeleteColumnsInputSchema = mcp.Input(
+	mcp.Property("spreadsheet", mcp.Description("spreadsheet name"), mcp.Required(true)),
+	mcp.Property("sheet", mcp.Description("sheet name"), mcp.Required(true)),
+	mcp.Property("count", mcp.Description("number of columns to delete"), mcp.Required(true)),
+	mcp.Property("start_column", mcp.Description("column index to start deleting (1-based)"), mcp.Required(true)),
+)
 
 // セル編集リクエスト
 type UpdateCellsRequest struct {
-	SpreadsheetName string          `json:"spreadsheet" jsonschema:"required,description=spreadsheet name"`
-	SheetName       string          `json:"sheet" jsonschema:"required,description=sheet name"`
-	Range           string          `json:"range" jsonschema:"required,description=cell range (e.g. A1:C10)"`
-	Data            [][]interface{} `json:"data" jsonschema:"required,description=2D array of cell values to update"`
+	SpreadsheetName string          `json:"spreadsheet"`
+	SheetName       string          `json:"sheet"`
+	Range           string          `json:"range"`
+	Data            [][]interface{} `json:"data"`
 }
+
+var UpdateCellsInputSchema = mcp.Input(
+	mcp.Property("spreadsheet", mcp.Description("spreadsheet name"), mcp.Required(true)),
+	mcp.Property("sheet", mcp.Description("sheet name"), mcp.Required(true)),
+	mcp.Property("range", mcp.Description("cell range (e.g. A1:C10)"), mcp.Required(true)),
+	mcp.Property("data", mcp.Description("2D array of cell values to update"), mcp.Required(true)),
+)
 
 // 複数範囲のセル編集リクエスト
 type BatchUpdateCellsRequest struct {
-	SpreadsheetName string                     `json:"spreadsheet" jsonschema:"required,description=spreadsheet name"`
-	SheetName       string                     `json:"sheet" jsonschema:"required,description=sheet name"`
-	Ranges          map[string][][]interface{} `json:"ranges" jsonschema:"required,description=map of range to 2D array of cell values (e.g. {'A1:B2': [[1, 2], [3, 4]], 'D5:E6': [[5, 6], [7, 8]]})"`
+	SpreadsheetName string                     `json:"spreadsheet"`
+	SheetName       string                     `json:"sheet"`
+	Ranges          map[string][][]interface{} `json:"ranges"`
 }
+
+var BatchUpdateCellsInputSchema = mcp.Input(
+	mcp.Property("spreadsheet", mcp.Description("spreadsheet name"), mcp.Required(true)),
+	mcp.Property("sheet", mcp.Description("sheet name"), mcp.Required(true)),
+	mcp.Property("ranges", mcp.Description("map of range to 2D array of cell values (e.g. {'A1:B2': [[1, 2], [3, 4]], 'D5:E6': [[5, 6], [7, 8]]})"), mcp.Required(true)),
+)
 
 // スプレッドシート名からスプレッドシートIDを取得する
 func (gs *GoogleSheets) getSpreadsheetId(spreadsheetName string) (string, error) {
@@ -97,31 +162,64 @@ func (gs *GoogleSheets) getSpreadsheetId(spreadsheetName string) (string, error)
 
 // コンテキスト付きでスプレッドシート名からスプレッドシートIDを取得する
 func (gs *GoogleSheets) getSpreadsheetIdWithContext(ctx context.Context, spreadsheetName string) (string, error) {
-	// スプレッドシート名からIDを検索
-	query := fmt.Sprintf("'%s' in parents and name = '%s' and mimeType = 'application/vnd.google-apps.spreadsheet' and trashed = false", gs.cfg.FolderID, spreadsheetName)
-	service, err := gs.auth.GetDriveService(ctx)
-	if err != nil {
-		return "", fmt.Errorf("failed to get drive service: %w", err)
+	// パスの正規化と検証
+	filePath := path.Clean(spreadsheetName)
+	if strings.HasPrefix(filePath, "..") || strings.HasPrefix(filePath, "/") {
+		return "", fmt.Errorf("invalid path: directory traversal is not allowed")
 	}
 
-	// 明示的に型を指定
-	driveService := service
+	// ルートフォルダから開始
+	parentID := gs.cfg.FolderID
 
-	fileList, err := driveService.Files.List().
-		Q(query).
-		SupportsAllDrives(true).
-		IncludeItemsFromAllDrives(true).
-		Fields("files(id, name)").
-		Do()
-	if err != nil {
-		return "", fmt.Errorf("failed to find spreadsheet: %w", err)
+	// パスが空の場合はエラー
+	if filePath == "." || filePath == "" {
+		return "", fmt.Errorf("spreadsheet name cannot be empty")
 	}
 
-	if len(fileList.Files) == 0 {
-		return "", fmt.Errorf("spreadsheet not found: %s", spreadsheetName)
+	// パスを分割
+	parts := strings.Split(filePath, "/")
+
+	// 各パスの部分を順番に検索
+	for i, part := range parts {
+		isLast := i == len(parts)-1
+
+		// 最後の部分（ファイル名）の場合はスプレッドシートタイプを指定
+		var query string
+		if isLast {
+			query = fmt.Sprintf("'%s' in parents and name = '%s' and mimeType = 'application/vnd.google-apps.spreadsheet' and trashed = false", parentID, part)
+		} else {
+			// フォルダの場合
+			query = fmt.Sprintf("'%s' in parents and name = '%s' and mimeType = 'application/vnd.google-apps.folder' and trashed = false", parentID, part)
+		}
+		
+		service, err := gs.auth.GetDriveService(ctx)
+		if err != nil {
+			return "", fmt.Errorf("failed to get drive service: %w", err)
+		}
+
+		fileList, err := service.Files.List().
+			Q(query).
+			SupportsAllDrives(true).
+			IncludeItemsFromAllDrives(true).
+			Fields("files(id, name, mimeType)").
+			Do()
+		if err != nil {
+			return "", fmt.Errorf("failed to find file/folder: %w", err)
+		}
+
+		if len(fileList.Files) == 0 {
+			if isLast {
+				return "", fmt.Errorf("spreadsheet not found: %s", spreadsheetName)
+			} else {
+				return "", fmt.Errorf("folder not found: %s", strings.Join(parts[:i+1], "/"))
+			}
+		}
+
+		// 次の親IDを設定（同名ファイルが複数ある場合は最初のものを使用）
+		parentID = fileList.Files[0].Id
 	}
 
-	return fileList.Files[0].Id, nil
+	return parentID, nil
 }
 
 // シートIDを取得する
@@ -152,11 +250,8 @@ func (gs *GoogleSheets) getSheetIdWithContext(ctx context.Context, spreadsheetId
 	return 0, fmt.Errorf("sheet not found: %s", sheetName)
 }
 
-func (gs *GoogleSheets) CopySheetHandler(request CopySheetRequest) (*mcp.ToolResponse, error) {
-	return gs.CopySheetHandlerWithContext(context.Background(), request)
-}
-
-func (gs *GoogleSheets) CopySheetHandlerWithContext(ctx context.Context, request CopySheetRequest) (*mcp.ToolResponse, error) {
+func (gs *GoogleSheets) CopySheetHandler(ctx context.Context, cc *mcp.ServerSession, params *mcp.CallToolParamsFor[CopySheetRequest]) (*mcp.CallToolResultFor[any], error) {
+	request := params.Arguments
 	// ソーススプレッドシートのIDを取得
 	srcSpreadsheetId, err := gs.getSpreadsheetIdWithContext(ctx, request.SrcSpreadsheetName)
 	if err != nil {
@@ -223,18 +318,19 @@ func (gs *GoogleSheets) CopySheetHandlerWithContext(ctx context.Context, request
 		return nil, fmt.Errorf("failed to rename copied sheet: %w", err)
 	}
 
-	return mcp.NewToolResponse(
-		mcp.NewTextContent(fmt.Sprintf("Sheet '%s' in spreadsheet '%s' successfully copied to sheet '%s' in spreadsheet '%s'",
-			request.SrcSheetName, request.SrcSpreadsheetName,
-			request.DstSheetName, request.DstSpreadsheetName)),
-	), nil
+	return &mcp.CallToolResultFor[any]{
+		Content: []mcp.Content{
+			&mcp.TextContent{
+				Text: fmt.Sprintf("Sheet '%s' in spreadsheet '%s' successfully copied to sheet '%s' in spreadsheet '%s'",
+					request.SrcSheetName, request.SrcSpreadsheetName,
+					request.DstSheetName, request.DstSpreadsheetName),
+			},
+		},
+	}, nil
 }
 
-func (gs *GoogleSheets) RenameSheetHandler(request RenameSheetRequest) (*mcp.ToolResponse, error) {
-	return gs.RenameSheetHandlerWithContext(context.Background(), request)
-}
-
-func (gs *GoogleSheets) RenameSheetHandlerWithContext(ctx context.Context, request RenameSheetRequest) (*mcp.ToolResponse, error) {
+func (gs *GoogleSheets) RenameSheetHandler(ctx context.Context, cc *mcp.ServerSession, params *mcp.CallToolParamsFor[RenameSheetRequest]) (*mcp.CallToolResultFor[any], error) {
+	request := params.Arguments
 	// スプレッドシートIDを取得
 	spreadsheetId, err := gs.getSpreadsheetIdWithContext(ctx, request.SpreadsheetName)
 	if err != nil {
@@ -280,17 +376,18 @@ func (gs *GoogleSheets) RenameSheetHandlerWithContext(ctx context.Context, reque
 		return nil, fmt.Errorf("failed to rename sheet: %w", err)
 	}
 
-	return mcp.NewToolResponse(
-		mcp.NewTextContent(fmt.Sprintf("Sheet '%s' in spreadsheet '%s' successfully renamed to '%s'",
-			request.SheetName, request.SpreadsheetName, request.NewName)),
-	), nil
+	return &mcp.CallToolResultFor[any]{
+		Content: []mcp.Content{
+			&mcp.TextContent{
+				Text: fmt.Sprintf("Sheet '%s' in spreadsheet '%s' successfully renamed to '%s'",
+					request.SheetName, request.SpreadsheetName, request.NewName),
+			},
+		},
+	}, nil
 }
 
-func (gs *GoogleSheets) ListSheetsHandler(request ListSheetsRequest) (*mcp.ToolResponse, error) {
-	return gs.ListSheetsHandlerWithContext(context.Background(), request)
-}
-
-func (gs *GoogleSheets) ListSheetsHandlerWithContext(ctx context.Context, request ListSheetsRequest) (*mcp.ToolResponse, error) {
+func (gs *GoogleSheets) ListSheetsHandler(ctx context.Context, cc *mcp.ServerSession, params *mcp.CallToolParamsFor[ListSheetsRequest]) (*mcp.CallToolResultFor[any], error) {
+	request := params.Arguments
 	// スプレッドシート名からスプレッドシートIDを取得
 	spreadsheetId, err := gs.getSpreadsheetIdWithContext(ctx, request.SpreadsheetName)
 	if err != nil {
@@ -321,16 +418,17 @@ func (gs *GoogleSheets) ListSheetsHandlerWithContext(ctx context.Context, reques
 	result.WriteString(fmt.Sprintf("\nTotal: %d sheets\n", len(spreadsheet.Sheets)))
 
 	// 成功レスポンスを返す
-	return mcp.NewToolResponse(
-		mcp.NewTextContent(result.String()),
-	), nil
+	return &mcp.CallToolResultFor[any]{
+		Content: []mcp.Content{
+			&mcp.TextContent{
+				Text: result.String(),
+			},
+		},
+	}, nil
 }
 
-func (gs *GoogleSheets) AddRowsHandler(request AddRowsRequest) (*mcp.ToolResponse, error) {
-	return gs.AddRowsHandlerWithContext(context.Background(), request)
-}
-
-func (gs *GoogleSheets) AddRowsHandlerWithContext(ctx context.Context, request AddRowsRequest) (*mcp.ToolResponse, error) {
+func (gs *GoogleSheets) AddRowsHandler(ctx context.Context, cc *mcp.ServerSession, params *mcp.CallToolParamsFor[AddRowsRequest]) (*mcp.CallToolResultFor[any], error) {
+	request := params.Arguments
 	// スプレッドシートIDを取得
 	spreadsheetId, err := gs.getSpreadsheetIdWithContext(ctx, request.SpreadsheetName)
 	if err != nil {
@@ -394,16 +492,17 @@ func (gs *GoogleSheets) AddRowsHandlerWithContext(ctx context.Context, request A
 			request.Count, request.SheetName, request.SpreadsheetName)
 	}
 
-	return mcp.NewToolResponse(
-		mcp.NewTextContent(message),
-	), nil
+	return &mcp.CallToolResultFor[any]{
+		Content: []mcp.Content{
+			&mcp.TextContent{
+				Text: message,
+			},
+		},
+	}, nil
 }
 
-func (gs *GoogleSheets) AddColumnsHandler(request AddColumnsRequest) (*mcp.ToolResponse, error) {
-	return gs.AddColumnsHandlerWithContext(context.Background(), request)
-}
-
-func (gs *GoogleSheets) AddColumnsHandlerWithContext(ctx context.Context, request AddColumnsRequest) (*mcp.ToolResponse, error) {
+func (gs *GoogleSheets) AddColumnsHandler(ctx context.Context, cc *mcp.ServerSession, params *mcp.CallToolParamsFor[AddColumnsRequest]) (*mcp.CallToolResultFor[any], error) {
+	request := params.Arguments
 	// スプレッドシートIDを取得
 	spreadsheetId, err := gs.getSpreadsheetIdWithContext(ctx, request.SpreadsheetName)
 	if err != nil {
@@ -467,9 +566,13 @@ func (gs *GoogleSheets) AddColumnsHandlerWithContext(ctx context.Context, reques
 			request.Count, request.SheetName, request.SpreadsheetName)
 	}
 
-	return mcp.NewToolResponse(
-		mcp.NewTextContent(message),
-	), nil
+	return &mcp.CallToolResultFor[any]{
+		Content: []mcp.Content{
+			&mcp.TextContent{
+				Text: message,
+			},
+		},
+	}, nil
 }
 
 // 2次元配列のデータを表形式の文字列に変換する関数
@@ -520,11 +623,8 @@ func columnIndexToLetter(index int64) string {
 }
 
 // 単一範囲のセル編集ハンドラー
-func (gs *GoogleSheets) UpdateCellsHandler(request UpdateCellsRequest) (*mcp.ToolResponse, error) {
-	return gs.UpdateCellsHandlerWithContext(context.Background(), request)
-}
-
-func (gs *GoogleSheets) UpdateCellsHandlerWithContext(ctx context.Context, request UpdateCellsRequest) (*mcp.ToolResponse, error) {
+func (gs *GoogleSheets) UpdateCellsHandler(ctx context.Context, cc *mcp.ServerSession, params *mcp.CallToolParamsFor[UpdateCellsRequest]) (*mcp.CallToolResultFor[any], error) {
+	request := params.Arguments
 	// スプレッドシートIDを取得
 	spreadsheetId, err := gs.getSpreadsheetIdWithContext(ctx, request.SpreadsheetName)
 	if err != nil {
@@ -600,9 +700,13 @@ func (gs *GoogleSheets) UpdateCellsHandlerWithContext(ctx context.Context, reque
 	prevDataStr := "\n\nPrevious data details:\n\n" + formatTableData(col, row, prevData.Values)
 
 	// レスポンスを作成（変更前のデータを含める）
-	return mcp.NewToolResponse(
-		mcp.NewTextContent(message + prevDataStr),
-	), nil
+	return &mcp.CallToolResultFor[any]{
+		Content: []mcp.Content{
+			&mcp.TextContent{
+				Text: message + prevDataStr,
+			},
+		},
+	}, nil
 }
 
 func startIndexFromRange(rangeStr string) (int64, int64, error) {
@@ -645,11 +749,8 @@ func startIndexFromRange(rangeStr string) (int64, int64, error) {
 }
 
 // 複数範囲のセル一括編集ハンドラー
-func (gs *GoogleSheets) BatchUpdateCellsHandler(request BatchUpdateCellsRequest) (*mcp.ToolResponse, error) {
-	return gs.BatchUpdateCellsHandlerWithContext(context.Background(), request)
-}
-
-func (gs *GoogleSheets) BatchUpdateCellsHandlerWithContext(ctx context.Context, request BatchUpdateCellsRequest) (*mcp.ToolResponse, error) {
+func (gs *GoogleSheets) BatchUpdateCellsHandler(ctx context.Context, cc *mcp.ServerSession, params *mcp.CallToolParamsFor[BatchUpdateCellsRequest]) (*mcp.CallToolResultFor[any], error) {
+	request := params.Arguments
 	// スプレッドシートIDを取得
 	spreadsheetId, err := gs.getSpreadsheetIdWithContext(ctx, request.SpreadsheetName)
 	if err != nil {
@@ -740,16 +841,17 @@ func (gs *GoogleSheets) BatchUpdateCellsHandlerWithContext(ctx context.Context, 
 	}
 
 	// レスポンスを作成（変更前のデータを含める）
-	return mcp.NewToolResponse(
-		mcp.NewTextContent(message + prevDataStr.String()),
-	), nil
+	return &mcp.CallToolResultFor[any]{
+		Content: []mcp.Content{
+			&mcp.TextContent{
+				Text: message + prevDataStr.String(),
+			},
+		},
+	}, nil
 }
 
-func (gs *GoogleSheets) GetSheetDataHandler(request GetSheetDataRequest) (*mcp.ToolResponse, error) {
-	return gs.GetSheetDataHandlerWithContext(context.Background(), request)
-}
-
-func (gs *GoogleSheets) GetSheetDataHandlerWithContext(ctx context.Context, request GetSheetDataRequest) (*mcp.ToolResponse, error) {
+func (gs *GoogleSheets) GetSheetDataHandler(ctx context.Context, cc *mcp.ServerSession, params *mcp.CallToolParamsFor[GetSheetDataRequest]) (*mcp.CallToolResultFor[any], error) {
+	request := params.Arguments
 	// スプレッドシートIDを取得
 	spreadsheetId, err := gs.getSpreadsheetIdWithContext(ctx, request.SpreadsheetName)
 	if err != nil {
@@ -787,9 +889,13 @@ func (gs *GoogleSheets) GetSheetDataHandlerWithContext(ctx context.Context, requ
 	// データがない場合
 	if len(resp.Values) == 0 {
 		result.WriteString("No data found.")
-		return mcp.NewToolResponse(
-			mcp.NewTextContent(result.String()),
-		), nil
+		return &mcp.CallToolResultFor[any]{
+			Content: []mcp.Content{
+				&mcp.TextContent{
+					Text: result.String(),
+				},
+			},
+		}, nil
 	}
 
 	// 各行のデータを表示
@@ -816,17 +922,18 @@ func (gs *GoogleSheets) GetSheetDataHandlerWithContext(ctx context.Context, requ
 	result.WriteString(fmt.Sprintf("\nTotal: %d rows x %d columns\n", rowCount, colCount))
 
 	// 成功レスポンスを返す
-	return mcp.NewToolResponse(
-		mcp.NewTextContent(result.String()),
-	), nil
+	return &mcp.CallToolResultFor[any]{
+		Content: []mcp.Content{
+			&mcp.TextContent{
+				Text: result.String(),
+			},
+		},
+	}, nil
 }
 
 // 行削除ハンドラー
-func (gs *GoogleSheets) DeleteRowsHandler(request DeleteRowsRequest) (*mcp.ToolResponse, error) {
-	return gs.DeleteRowsHandlerWithContext(context.Background(), request)
-}
-
-func (gs *GoogleSheets) DeleteRowsHandlerWithContext(ctx context.Context, request DeleteRowsRequest) (*mcp.ToolResponse, error) {
+func (gs *GoogleSheets) DeleteRowsHandler(ctx context.Context, cc *mcp.ServerSession, params *mcp.CallToolParamsFor[DeleteRowsRequest]) (*mcp.CallToolResultFor[any], error) {
+	request := params.Arguments
 	// スプレッドシートIDを取得
 	spreadsheetId, err := gs.getSpreadsheetIdWithContext(ctx, request.SpreadsheetName)
 	if err != nil {
@@ -913,17 +1020,18 @@ func (gs *GoogleSheets) DeleteRowsHandlerWithContext(ctx context.Context, reques
 
 	prevDataStr := "\n\nDeleted data details:\n\n" + formatTableData(1, request.StartRow, prevData.Values)
 
-	return mcp.NewToolResponse(
-		mcp.NewTextContent(message + prevDataStr),
-	), nil
+	return &mcp.CallToolResultFor[any]{
+		Content: []mcp.Content{
+			&mcp.TextContent{
+				Text: message + prevDataStr,
+			},
+		},
+	}, nil
 }
 
 // 列削除ハンドラー
-func (gs *GoogleSheets) DeleteColumnsHandler(request DeleteColumnsRequest) (*mcp.ToolResponse, error) {
-	return gs.DeleteColumnsHandlerWithContext(context.Background(), request)
-}
-
-func (gs *GoogleSheets) DeleteColumnsHandlerWithContext(ctx context.Context, request DeleteColumnsRequest) (*mcp.ToolResponse, error) {
+func (gs *GoogleSheets) DeleteColumnsHandler(ctx context.Context, cc *mcp.ServerSession, params *mcp.CallToolParamsFor[DeleteColumnsRequest]) (*mcp.CallToolResultFor[any], error) {
+	request := params.Arguments
 	// スプレッドシートIDを取得
 	spreadsheetId, err := gs.getSpreadsheetIdWithContext(ctx, request.SpreadsheetName)
 	if err != nil {
@@ -1011,7 +1119,11 @@ func (gs *GoogleSheets) DeleteColumnsHandlerWithContext(ctx context.Context, req
 	// 削除前のデータを表示用に整形
 	prevDataStr := "\n\nDeleted data details:\n\n" + formatTableData(request.StartColumn, 1, prevData.Values)
 
-	return mcp.NewToolResponse(
-		mcp.NewTextContent(message + prevDataStr),
-	), nil
+	return &mcp.CallToolResultFor[any]{
+		Content: []mcp.Content{
+			&mcp.TextContent{
+				Text: message + prevDataStr,
+			},
+		},
+	}, nil
 }
