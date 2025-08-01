@@ -36,88 +36,147 @@ func main() {
 		logger.ErrorContext(ctx, "failed to create sheet", "error", err)
 		os.Exit(1)
 	}
-	server := mcp.NewServer("mcp-google-spreadsheet", "v1.0.0", nil)
+	server := mcp.NewServer(
+		&mcp.Implementation{
+			Name:    "mcp-google-spreadsheet",
+			Title:   "Google Spreadsheet MCP Server",
+			Version: "v1.0.0",
+		},
+		&mcp.ServerOptions{
+			Instructions: "MCP server for Google Spreadsheet and Google Drive operations",
+		},
+	)
 
 	// Register all tools
-	server.AddTools(
-		mcp.NewServerTool(
-			"list_files",
-			"List files in google drive",
-			drive.ListFilesHandler,
-			ListFilesInputSchema,
-		),
-		mcp.NewServerTool(
-			"copy_file",
-			"Copy file in google drive",
-			drive.CopyFileHandler,
-			CopyFileInputSchema,
-		),
-		mcp.NewServerTool(
-			"rename_file",
-			"Rename file in google drive",
-			drive.RenameFileHandler,
-			RenameFileInputSchema,
-		),
-		mcp.NewServerTool(
-			"list_sheets",
-			"List sheets in google sheet",
-			sheet.ListSheetsHandler,
-			ListSheetsInputSchema,
-		),
-		mcp.NewServerTool(
-			"copy_sheet",
-			"Copy sheet in google sheet",
-			sheet.CopySheetHandler,
-			CopySheetInputSchema,
-		),
-		mcp.NewServerTool(
-			"rename_sheet",
-			"Rename sheet in google sheet",
-			sheet.RenameSheetHandler,
-			RenameSheetInputSchema,
-		),
-		mcp.NewServerTool(
-			"get_sheet_data",
-			"Get data from sheet in google sheet",
-			sheet.GetSheetDataHandler,
-			GetSheetDataInputSchema,
-		),
-		mcp.NewServerTool(
-			"add_rows",
-			"Add rows to sheet in google sheet",
-			sheet.AddRowsHandler,
-			AddRowsInputSchema,
-		),
-		mcp.NewServerTool(
-			"add_columns",
-			"Add columns to sheet in google sheet",
-			sheet.AddColumnsHandler,
-			AddColumnsInputSchema,
-		),
-		mcp.NewServerTool(
-			"update_cells",
-			"Update cells in google sheet",
-			sheet.UpdateCellsHandler,
-			UpdateCellsInputSchema,
-		),
-		mcp.NewServerTool(
-			"batch_update_cells",
-			"Batch update cells in google sheet",
-			sheet.BatchUpdateCellsHandler,
-			BatchUpdateCellsInputSchema,
-		),
-		mcp.NewServerTool(
-			"delete_rows",
-			"Delete rows from sheet in google sheet",
-			sheet.DeleteRowsHandler,
-			DeleteRowsInputSchema,
-		),
-		mcp.NewServerTool(
-			"delete_columns",
-			"Delete columns from sheet in google sheet",
-			sheet.DeleteColumnsHandler,
-			DeleteColumnsInputSchema,
-		),
+	mcp.AddTool(
+		server,
+		&mcp.Tool{
+			Name:        "list_files",
+			Title:       "List Files",
+			Description: "List files in google drive",
+			InputSchema: ListFilesInputSchema,
+		},
+		drive.ListFilesHandler,
+	)
+	mcp.AddTool(
+		server,
+		&mcp.Tool{
+			Name:        "copy_file",
+			Title:       "Copy File",
+			Description: "Copy file in google drive",
+			InputSchema: CopyFileInputSchema,
+		},
+		drive.CopyFileHandler,
+	)
+	mcp.AddTool(
+		server,
+		&mcp.Tool{
+			Name:        "rename_file",
+			Title:       "Rename File",
+			Description: "Rename file in google drive",
+			InputSchema: RenameFileInputSchema,
+		},
+		drive.RenameFileHandler,
+	)
+	mcp.AddTool(
+		server,
+		&mcp.Tool{
+			Name:        "list_sheets",
+			Title:       "List Sheets",
+			Description: "List sheets in google sheet",
+			InputSchema: ListSheetsInputSchema,
+		},
+		sheet.ListSheetsHandler,
+	)
+	mcp.AddTool(
+		server,
+		&mcp.Tool{
+			Name:        "copy_sheet",
+			Title:       "Copy Sheet",
+			Description: "Copy sheet in google sheet",
+			InputSchema: CopySheetInputSchema,
+		},
+		sheet.CopySheetHandler,
+	)
+	mcp.AddTool(
+		server,
+		&mcp.Tool{
+			Name:        "rename_sheet",
+			Title:       "Rename Sheet",
+			Description: "Rename sheet in google sheet",
+			InputSchema: RenameSheetInputSchema,
+		},
+		sheet.RenameSheetHandler,
+	)
+	mcp.AddTool(
+		server,
+		&mcp.Tool{
+			Name:        "get_sheet_data",
+			Title:       "Get Sheet Data",
+			Description: "Get data from sheet in google sheet",
+			InputSchema: GetSheetDataInputSchema,
+		},
+		sheet.GetSheetDataHandler,
+	)
+	mcp.AddTool(
+		server,
+		&mcp.Tool{
+			Name:        "add_rows",
+			Title:       "Add Rows",
+			Description: "Add rows to sheet in google sheet",
+			InputSchema: AddRowsInputSchema,
+		},
+		sheet.AddRowsHandler,
+	)
+	mcp.AddTool(
+		server,
+		&mcp.Tool{
+			Name:        "add_columns",
+			Title:       "Add Columns",
+			Description: "Add columns to sheet in google sheet",
+			InputSchema: AddColumnsInputSchema,
+		},
+		sheet.AddColumnsHandler,
+	)
+	mcp.AddTool(
+		server,
+		&mcp.Tool{
+			Name:        "update_cells",
+			Title:       "Update Cells",
+			Description: "Update cells in google sheet",
+			InputSchema: UpdateCellsInputSchema,
+		},
+		sheet.UpdateCellsHandler,
+	)
+	mcp.AddTool(
+		server,
+		&mcp.Tool{
+			Name:        "batch_update_cells",
+			Title:       "Batch Update Cells",
+			Description: "Batch update cells in google sheet",
+			InputSchema: BatchUpdateCellsInputSchema,
+		},
+		sheet.BatchUpdateCellsHandler,
+	)
+	mcp.AddTool(
+		server,
+		&mcp.Tool{
+			Name:        "delete_rows",
+			Title:       "Delete Rows",
+			Description: "Delete rows from sheet in google sheet",
+			InputSchema: DeleteRowsInputSchema,
+		},
+		sheet.DeleteRowsHandler,
+	)
+	mcp.AddTool(
+		server,
+		&mcp.Tool{
+			Name:        "delete_columns",
+			Title:       "Delete Columns",
+			Description: "Delete columns from sheet in google sheet",
+			InputSchema: DeleteColumnsInputSchema,
+		},
+		sheet.DeleteColumnsHandler,
 	)
 
 	if err := server.Run(ctx, mcp.NewStdioTransport()); err != nil {
@@ -125,3 +184,8 @@ func main() {
 		os.Exit(1)
 	}
 }
+
+func ToPtr[T any](v T) *T {
+        return &v
+}
+

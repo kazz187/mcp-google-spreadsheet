@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/modelcontextprotocol/go-sdk/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"google.golang.org/api/sheets/v4"
 )
@@ -30,12 +31,28 @@ type CopySheetRequest struct {
 	DstSheetName       string `json:"dst_sheet"`
 }
 
-var CopySheetInputSchema = mcp.Input(
-	mcp.Property("src_spreadsheet", mcp.Description("source spreadsheet name"), mcp.Required(true)),
-	mcp.Property("src_sheet", mcp.Description("source sheet name"), mcp.Required(true)),
-	mcp.Property("dst_spreadsheet", mcp.Description("destination spreadsheet name"), mcp.Required(true)),
-	mcp.Property("dst_sheet", mcp.Description("destination sheet name"), mcp.Required(true)),
-)
+var CopySheetInputSchema = &jsonschema.Schema{
+	Type: "object",
+	Properties: map[string]*jsonschema.Schema{
+		"src_spreadsheet": {
+			Type:        "string",
+			Description: "source spreadsheet name",
+		},
+		"src_sheet": {
+			Type:        "string",
+			Description: "source sheet name",
+		},
+		"dst_spreadsheet": {
+			Type:        "string",
+			Description: "destination spreadsheet name",
+		},
+		"dst_sheet": {
+			Type:        "string",
+			Description: "destination sheet name",
+		},
+	},
+	Required: []string{"src_spreadsheet", "src_sheet", "dst_spreadsheet", "dst_sheet"},
+}
 
 type RenameSheetRequest struct {
 	SpreadsheetName string `json:"spreadsheet"`
@@ -43,19 +60,39 @@ type RenameSheetRequest struct {
 	NewName         string `json:"new_name"`
 }
 
-var RenameSheetInputSchema = mcp.Input(
-	mcp.Property("spreadsheet", mcp.Description("spreadsheet name"), mcp.Required(true)),
-	mcp.Property("sheet", mcp.Description("sheet name"), mcp.Required(true)),
-	mcp.Property("new_name", mcp.Description("new sheet name"), mcp.Required(true)),
-)
+var RenameSheetInputSchema = &jsonschema.Schema{
+	Type: "object",
+	Properties: map[string]*jsonschema.Schema{
+		"spreadsheet": {
+			Type:        "string",
+			Description: "spreadsheet name",
+		},
+		"sheet": {
+			Type:        "string",
+			Description: "sheet name",
+		},
+		"new_name": {
+			Type:        "string",
+			Description: "new sheet name",
+		},
+	},
+	Required: []string{"spreadsheet", "sheet", "new_name"},
+}
 
 type ListSheetsRequest struct {
 	SpreadsheetName string `json:"spreadsheet"`
 }
 
-var ListSheetsInputSchema = mcp.Input(
-	mcp.Property("spreadsheet", mcp.Description("spreadsheet name"), mcp.Required(true)),
-)
+var ListSheetsInputSchema = &jsonschema.Schema{
+	Type: "object",
+	Properties: map[string]*jsonschema.Schema{
+		"spreadsheet": {
+			Type:        "string",
+			Description: "spreadsheet name",
+		},
+	},
+	Required: []string{"spreadsheet"},
+}
 
 type GetSheetDataRequest struct {
 	SpreadsheetName string `json:"spreadsheet"`
@@ -63,11 +100,24 @@ type GetSheetDataRequest struct {
 	Range           string `json:"range"`
 }
 
-var GetSheetDataInputSchema = mcp.Input(
-	mcp.Property("spreadsheet", mcp.Description("spreadsheet name"), mcp.Required(true)),
-	mcp.Property("sheet", mcp.Description("sheet name"), mcp.Required(true)),
-	mcp.Property("range", mcp.Description("cell range (e.g. A1:C10, default: all data)")),
-)
+var GetSheetDataInputSchema = &jsonschema.Schema{
+	Type: "object",
+	Properties: map[string]*jsonschema.Schema{
+		"spreadsheet": {
+			Type:        "string",
+			Description: "spreadsheet name",
+		},
+		"sheet": {
+			Type:        "string",
+			Description: "sheet name",
+		},
+		"range": {
+			Type:        "string",
+			Description: "cell range (e.g. A1:C10, default: all data)",
+		},
+	},
+	Required: []string{"spreadsheet", "sheet"},
+}
 
 type AddRowsRequest struct {
 	SpreadsheetName string `json:"spreadsheet"`
@@ -76,12 +126,28 @@ type AddRowsRequest struct {
 	StartRow        int64  `json:"start_row"`
 }
 
-var AddRowsInputSchema = mcp.Input(
-	mcp.Property("spreadsheet", mcp.Description("spreadsheet name"), mcp.Required(true)),
-	mcp.Property("sheet", mcp.Description("sheet name"), mcp.Required(true)),
-	mcp.Property("count", mcp.Description("number of rows to add"), mcp.Required(true)),
-	mcp.Property("start_row", mcp.Description("row index to start adding (1-based)")),
-)
+var AddRowsInputSchema = &jsonschema.Schema{
+	Type: "object",
+	Properties: map[string]*jsonschema.Schema{
+		"spreadsheet": {
+			Type:        "string",
+			Description: "spreadsheet name",
+		},
+		"sheet": {
+			Type:        "string",
+			Description: "sheet name",
+		},
+		"count": {
+			Type:        "integer",
+			Description: "number of rows to add",
+		},
+		"start_row": {
+			Type:        "integer",
+			Description: "row index to start adding (1-based)",
+		},
+	},
+	Required: []string{"spreadsheet", "sheet", "count"},
+}
 
 type AddColumnsRequest struct {
 	SpreadsheetName string `json:"spreadsheet"`
@@ -90,12 +156,28 @@ type AddColumnsRequest struct {
 	StartColumn     int64  `json:"start_column"`
 }
 
-var AddColumnsInputSchema = mcp.Input(
-	mcp.Property("spreadsheet", mcp.Description("spreadsheet name"), mcp.Required(true)),
-	mcp.Property("sheet", mcp.Description("sheet name"), mcp.Required(true)),
-	mcp.Property("count", mcp.Description("number of columns to add"), mcp.Required(true)),
-	mcp.Property("start_column", mcp.Description("column index to start adding (1-based)")),
-)
+var AddColumnsInputSchema = &jsonschema.Schema{
+	Type: "object",
+	Properties: map[string]*jsonschema.Schema{
+		"spreadsheet": {
+			Type:        "string",
+			Description: "spreadsheet name",
+		},
+		"sheet": {
+			Type:        "string",
+			Description: "sheet name",
+		},
+		"count": {
+			Type:        "integer",
+			Description: "number of columns to add",
+		},
+		"start_column": {
+			Type:        "integer",
+			Description: "column index to start adding (1-based)",
+		},
+	},
+	Required: []string{"spreadsheet", "sheet", "count"},
+}
 
 // 行削除リクエスト
 type DeleteRowsRequest struct {
@@ -105,12 +187,28 @@ type DeleteRowsRequest struct {
 	StartRow        int64  `json:"start_row"`
 }
 
-var DeleteRowsInputSchema = mcp.Input(
-	mcp.Property("spreadsheet", mcp.Description("spreadsheet name"), mcp.Required(true)),
-	mcp.Property("sheet", mcp.Description("sheet name"), mcp.Required(true)),
-	mcp.Property("count", mcp.Description("number of rows to delete"), mcp.Required(true)),
-	mcp.Property("start_row", mcp.Description("row index to start deleting (1-based)"), mcp.Required(true)),
-)
+var DeleteRowsInputSchema = &jsonschema.Schema{
+	Type: "object",
+	Properties: map[string]*jsonschema.Schema{
+		"spreadsheet": {
+			Type:        "string",
+			Description: "spreadsheet name",
+		},
+		"sheet": {
+			Type:        "string",
+			Description: "sheet name",
+		},
+		"count": {
+			Type:        "integer",
+			Description: "number of rows to delete",
+		},
+		"start_row": {
+			Type:        "integer",
+			Description: "row index to start deleting (1-based)",
+		},
+	},
+	Required: []string{"spreadsheet", "sheet", "count", "start_row"},
+}
 
 // 列削除リクエスト
 type DeleteColumnsRequest struct {
@@ -120,12 +218,28 @@ type DeleteColumnsRequest struct {
 	StartColumn     int64  `json:"start_column"`
 }
 
-var DeleteColumnsInputSchema = mcp.Input(
-	mcp.Property("spreadsheet", mcp.Description("spreadsheet name"), mcp.Required(true)),
-	mcp.Property("sheet", mcp.Description("sheet name"), mcp.Required(true)),
-	mcp.Property("count", mcp.Description("number of columns to delete"), mcp.Required(true)),
-	mcp.Property("start_column", mcp.Description("column index to start deleting (1-based)"), mcp.Required(true)),
-)
+var DeleteColumnsInputSchema = &jsonschema.Schema{
+	Type: "object",
+	Properties: map[string]*jsonschema.Schema{
+		"spreadsheet": {
+			Type:        "string",
+			Description: "spreadsheet name",
+		},
+		"sheet": {
+			Type:        "string",
+			Description: "sheet name",
+		},
+		"count": {
+			Type:        "integer",
+			Description: "number of columns to delete",
+		},
+		"start_column": {
+			Type:        "integer",
+			Description: "column index to start deleting (1-based)",
+		},
+	},
+	Required: []string{"spreadsheet", "sheet", "count", "start_column"},
+}
 
 // セル編集リクエスト
 type UpdateCellsRequest struct {
@@ -135,12 +249,31 @@ type UpdateCellsRequest struct {
 	Data            [][]interface{} `json:"data"`
 }
 
-var UpdateCellsInputSchema = mcp.Input(
-	mcp.Property("spreadsheet", mcp.Description("spreadsheet name"), mcp.Required(true)),
-	mcp.Property("sheet", mcp.Description("sheet name"), mcp.Required(true)),
-	mcp.Property("range", mcp.Description("cell range (e.g. A1:C10)"), mcp.Required(true)),
-	mcp.Property("data", mcp.Description("2D array of cell values to update"), mcp.Required(true)),
-)
+var UpdateCellsInputSchema = &jsonschema.Schema{
+	Type: "object",
+	Properties: map[string]*jsonschema.Schema{
+		"spreadsheet": {
+			Type:        "string",
+			Description: "spreadsheet name",
+		},
+		"sheet": {
+			Type:        "string",
+			Description: "sheet name",
+		},
+		"range": {
+			Type:        "string",
+			Description: "cell range (e.g. A1:C10)",
+		},
+		"data": {
+			Type:        "array",
+			Description: "2D array of cell values to update",
+			Items: &jsonschema.Schema{
+				Type: "array",
+			},
+		},
+	},
+	Required: []string{"spreadsheet", "sheet", "range", "data"},
+}
 
 // 複数範囲のセル編集リクエスト
 type BatchUpdateCellsRequest struct {
@@ -149,11 +282,30 @@ type BatchUpdateCellsRequest struct {
 	Ranges          map[string][][]interface{} `json:"ranges"`
 }
 
-var BatchUpdateCellsInputSchema = mcp.Input(
-	mcp.Property("spreadsheet", mcp.Description("spreadsheet name"), mcp.Required(true)),
-	mcp.Property("sheet", mcp.Description("sheet name"), mcp.Required(true)),
-	mcp.Property("ranges", mcp.Description("map of range to 2D array of cell values (e.g. {'A1:B2': [[1, 2], [3, 4]], 'D5:E6': [[5, 6], [7, 8]]})"), mcp.Required(true)),
-)
+var BatchUpdateCellsInputSchema = &jsonschema.Schema{
+	Type: "object",
+	Properties: map[string]*jsonschema.Schema{
+		"spreadsheet": {
+			Type:        "string",
+			Description: "spreadsheet name",
+		},
+		"sheet": {
+			Type:        "string",
+			Description: "sheet name",
+		},
+		"ranges": {
+			Type:        "object",
+			Description: "map of range to 2D array of cell values (e.g. {'A1:B2': [[1, 2], [3, 4]], 'D5:E6': [[5, 6], [7, 8]]})",
+			AdditionalProperties: &jsonschema.Schema{
+				Type: "array",
+				Items: &jsonschema.Schema{
+					Type: "array",
+				},
+			},
+		},
+	},
+	Required: []string{"spreadsheet", "sheet", "ranges"},
+}
 
 // スプレッドシート名からスプレッドシートIDを取得する
 func (gs *GoogleSheets) getSpreadsheetId(spreadsheetName string) (string, error) {

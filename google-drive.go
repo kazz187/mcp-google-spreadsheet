@@ -6,6 +6,7 @@ import (
 	"path"
 	"strings"
 
+	"github.com/modelcontextprotocol/go-sdk/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"google.golang.org/api/drive/v3"
 )
@@ -26,29 +27,55 @@ type ListFilesRequest struct {
 	Path string `json:"path"`
 }
 
-var ListFilesInputSchema = mcp.Input(
-	mcp.Property("path", mcp.Description("directory path (default: root directory)")),
-)
+var ListFilesInputSchema = &jsonschema.Schema{
+	Type: "object",
+	Properties: map[string]*jsonschema.Schema{
+		"path": {
+			Type:        "string",
+			Description: "directory path (default: root directory)",
+		},
+	},
+}
 
 type CopyFileRequest struct {
 	SrcPath string `json:"src_path"`
 	DstPath string `json:"dst_path"`
 }
 
-var CopyFileInputSchema = mcp.Input(
-	mcp.Property("src_path", mcp.Description("source path"), mcp.Required(true)),
-	mcp.Property("dst_path", mcp.Description("destination path"), mcp.Required(true)),
-)
+var CopyFileInputSchema = &jsonschema.Schema{
+	Type: "object",
+	Properties: map[string]*jsonschema.Schema{
+		"src_path": {
+			Type:        "string",
+			Description: "source path",
+		},
+		"dst_path": {
+			Type:        "string",
+			Description: "destination path",
+		},
+	},
+	Required: []string{"src_path", "dst_path"},
+}
 
 type RenameFileRequest struct {
 	Path    string `json:"path"`
 	NewName string `json:"new_name"`
 }
 
-var RenameFileInputSchema = mcp.Input(
-	mcp.Property("path", mcp.Description("file path"), mcp.Required(true)),
-	mcp.Property("new_name", mcp.Description("new file name"), mcp.Required(true)),
-)
+var RenameFileInputSchema = &jsonschema.Schema{
+	Type: "object",
+	Properties: map[string]*jsonschema.Schema{
+		"path": {
+			Type:        "string",
+			Description: "file path",
+		},
+		"new_name": {
+			Type:        "string",
+			Description: "new file name",
+		},
+	},
+	Required: []string{"path", "new_name"},
+}
 
 // パスからファイルIDを取得する
 func (gd *GoogleDrive) getFileIDByPath(ctx context.Context, filePath string) (string, error) {
