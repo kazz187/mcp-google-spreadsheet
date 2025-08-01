@@ -25,103 +25,103 @@ func NewGoogleSheets(cfg *Config, auth *GoogleAuth) (*GoogleSheets, error) {
 }
 
 type CopySheetRequest struct {
-	SrcSpreadsheetName string `json:"src_spreadsheet"`
-	SrcSheetName       string `json:"src_sheet"`
-	DstSpreadsheetName string `json:"dst_spreadsheet"`
-	DstSheetName       string `json:"dst_sheet"`
+	SrcSpreadsheetName string `json:"source_spreadsheet_name"`
+	SrcSheetName       string `json:"source_sheet_name"`
+	DstSpreadsheetName string `json:"destination_spreadsheet_name"`
+	DstSheetName       string `json:"destination_sheet_name"`
 }
 
 var CopySheetInputSchema = &jsonschema.Schema{
 	Type: "object",
 	Properties: map[string]*jsonschema.Schema{
-		"src_spreadsheet": {
+		"source_spreadsheet_name": {
 			Type:        "string",
-			Description: "source spreadsheet name",
+			Description: "Name of source Google Spreadsheet file",
 		},
-		"src_sheet": {
+		"source_sheet_name": {
 			Type:        "string",
-			Description: "source sheet name",
+			Description: "Name of the sheet/tab to copy from",
 		},
-		"dst_spreadsheet": {
+		"destination_spreadsheet_name": {
 			Type:        "string",
-			Description: "destination spreadsheet name",
+			Description: "Name of destination Google Spreadsheet file",
 		},
-		"dst_sheet": {
+		"destination_sheet_name": {
 			Type:        "string",
-			Description: "destination sheet name",
+			Description: "Name for the new sheet/tab in the destination",
 		},
 	},
-	Required: []string{"src_spreadsheet", "src_sheet", "dst_spreadsheet", "dst_sheet"},
+	Required: []string{"source_spreadsheet_name", "source_sheet_name", "destination_spreadsheet_name", "destination_sheet_name"},
 }
 
 type RenameSheetRequest struct {
-	SpreadsheetName string `json:"spreadsheet"`
-	SheetName       string `json:"sheet"`
+	SpreadsheetName string `json:"spreadsheet_name"`
+	SheetName       string `json:"sheet_name"`
 	NewName         string `json:"new_name"`
 }
 
 var RenameSheetInputSchema = &jsonschema.Schema{
 	Type: "object",
 	Properties: map[string]*jsonschema.Schema{
-		"spreadsheet": {
+		"spreadsheet_name": {
 			Type:        "string",
-			Description: "spreadsheet name",
+			Description: "Name of the Google Spreadsheet file",
 		},
-		"sheet": {
+		"sheet_name": {
 			Type:        "string",
-			Description: "sheet name",
+			Description: "Current name of the sheet/tab to rename",
 		},
 		"new_name": {
 			Type:        "string",
-			Description: "new sheet name",
+			Description: "New name for the sheet/tab",
 		},
 	},
-	Required: []string{"spreadsheet", "sheet", "new_name"},
+	Required: []string{"spreadsheet_name", "sheet_name", "new_name"},
 }
 
 type ListSheetsRequest struct {
-	SpreadsheetName string `json:"spreadsheet"`
+	SpreadsheetName string `json:"spreadsheet_name"`
 }
 
 var ListSheetsInputSchema = &jsonschema.Schema{
 	Type: "object",
 	Properties: map[string]*jsonschema.Schema{
-		"spreadsheet": {
+		"spreadsheet_name": {
 			Type:        "string",
-			Description: "spreadsheet name",
+			Description: "Name of the Google Spreadsheet file (as shown in google_drive_list_files). Example: 'My Spreadsheet' or 'Archive/data.xlsx'",
 		},
 	},
-	Required: []string{"spreadsheet"},
+	Required: []string{"spreadsheet_name"},
 }
 
 type GetSheetDataRequest struct {
-	SpreadsheetName string `json:"spreadsheet"`
-	SheetName       string `json:"sheet"`
+	SpreadsheetName string `json:"spreadsheet_name"`
+	SheetName       string `json:"sheet_name"`
 	Range           string `json:"range"`
 }
 
 var GetSheetDataInputSchema = &jsonschema.Schema{
 	Type: "object",
 	Properties: map[string]*jsonschema.Schema{
-		"spreadsheet": {
+		"spreadsheet_name": {
 			Type:        "string",
-			Description: "spreadsheet name",
+			Description: "Name of the Google Spreadsheet file. Example: 'My Spreadsheet'",
 		},
-		"sheet": {
+		"sheet_name": {
 			Type:        "string",
-			Description: "sheet name",
+			Description: "Name of the sheet/tab within the spreadsheet. Example: 'Sheet1', 'Data', or '/wiki/api/v2/blogposts'",
 		},
 		"range": {
 			Type:        "string",
-			Description: "cell range (e.g. A1:C10, default: all data)",
+			Description: "Optional cell range to read (A1 notation). Examples: 'A1:C10', 'B2:D5'. Leave empty to read all data.",
 		},
 	},
-	Required: []string{"spreadsheet", "sheet"},
+	Required: []string{"spreadsheet_name", "sheet_name"},
 }
 
 type AddRowsRequest struct {
-	SpreadsheetName string `json:"spreadsheet"`
-	SheetName       string `json:"sheet"`
+	SpreadsheetName string `json:"spreadsheet_name"`
+	SheetName       string `json:"sheet_name"`
 	Count           int64  `json:"count"`
 	StartRow        int64  `json:"start_row"`
 }
@@ -129,29 +129,29 @@ type AddRowsRequest struct {
 var AddRowsInputSchema = &jsonschema.Schema{
 	Type: "object",
 	Properties: map[string]*jsonschema.Schema{
-		"spreadsheet": {
+		"spreadsheet_name": {
 			Type:        "string",
-			Description: "spreadsheet name",
+			Description: "Name of the Google Spreadsheet file",
 		},
-		"sheet": {
+		"sheet_name": {
 			Type:        "string",
-			Description: "sheet name",
+			Description: "Name of the sheet/tab to modify",
 		},
 		"count": {
 			Type:        "integer",
-			Description: "number of rows to add",
+			Description: "Number of rows to insert",
 		},
 		"start_row": {
 			Type:        "integer",
-			Description: "row index to start adding (1-based)",
+			Description: "Row position to start inserting (1-based). If not specified, rows will be added at the end.",
 		},
 	},
-	Required: []string{"spreadsheet", "sheet", "count"},
+	Required: []string{"spreadsheet_name", "sheet_name", "count"},
 }
 
 type AddColumnsRequest struct {
-	SpreadsheetName string `json:"spreadsheet"`
-	SheetName       string `json:"sheet"`
+	SpreadsheetName string `json:"spreadsheet_name"`
+	SheetName       string `json:"sheet_name"`
 	Count           int64  `json:"count"`
 	StartColumn     int64  `json:"start_column"`
 }
@@ -159,30 +159,30 @@ type AddColumnsRequest struct {
 var AddColumnsInputSchema = &jsonschema.Schema{
 	Type: "object",
 	Properties: map[string]*jsonschema.Schema{
-		"spreadsheet": {
+		"spreadsheet_name": {
 			Type:        "string",
-			Description: "spreadsheet name",
+			Description: "Name of the Google Spreadsheet file",
 		},
-		"sheet": {
+		"sheet_name": {
 			Type:        "string",
-			Description: "sheet name",
+			Description: "Name of the sheet/tab to modify",
 		},
 		"count": {
 			Type:        "integer",
-			Description: "number of columns to add",
+			Description: "Number of columns to insert",
 		},
 		"start_column": {
 			Type:        "integer",
-			Description: "column index to start adding (1-based)",
+			Description: "Column position to start inserting (1-based). If not specified, columns will be added at the end.",
 		},
 	},
-	Required: []string{"spreadsheet", "sheet", "count"},
+	Required: []string{"spreadsheet_name", "sheet_name", "count"},
 }
 
 // 行削除リクエスト
 type DeleteRowsRequest struct {
-	SpreadsheetName string `json:"spreadsheet"`
-	SheetName       string `json:"sheet"`
+	SpreadsheetName string `json:"spreadsheet_name"`
+	SheetName       string `json:"sheet_name"`
 	Count           int64  `json:"count"`
 	StartRow        int64  `json:"start_row"`
 }
@@ -190,30 +190,30 @@ type DeleteRowsRequest struct {
 var DeleteRowsInputSchema = &jsonschema.Schema{
 	Type: "object",
 	Properties: map[string]*jsonschema.Schema{
-		"spreadsheet": {
+		"spreadsheet_name": {
 			Type:        "string",
-			Description: "spreadsheet name",
+			Description: "Name of the Google Spreadsheet file",
 		},
-		"sheet": {
+		"sheet_name": {
 			Type:        "string",
-			Description: "sheet name",
+			Description: "Name of the sheet/tab to modify",
 		},
 		"count": {
 			Type:        "integer",
-			Description: "number of rows to delete",
+			Description: "Number of rows to delete",
 		},
 		"start_row": {
 			Type:        "integer",
-			Description: "row index to start deleting (1-based)",
+			Description: "First row to delete (1-based). Example: 5 to delete row 5 onwards",
 		},
 	},
-	Required: []string{"spreadsheet", "sheet", "count", "start_row"},
+	Required: []string{"spreadsheet_name", "sheet_name", "count", "start_row"},
 }
 
 // 列削除リクエスト
 type DeleteColumnsRequest struct {
-	SpreadsheetName string `json:"spreadsheet"`
-	SheetName       string `json:"sheet"`
+	SpreadsheetName string `json:"spreadsheet_name"`
+	SheetName       string `json:"sheet_name"`
 	Count           int64  `json:"count"`
 	StartColumn     int64  `json:"start_column"`
 }
@@ -221,30 +221,30 @@ type DeleteColumnsRequest struct {
 var DeleteColumnsInputSchema = &jsonschema.Schema{
 	Type: "object",
 	Properties: map[string]*jsonschema.Schema{
-		"spreadsheet": {
+		"spreadsheet_name": {
 			Type:        "string",
-			Description: "spreadsheet name",
+			Description: "Name of the Google Spreadsheet file",
 		},
-		"sheet": {
+		"sheet_name": {
 			Type:        "string",
-			Description: "sheet name",
+			Description: "Name of the sheet/tab to modify",
 		},
 		"count": {
 			Type:        "integer",
-			Description: "number of columns to delete",
+			Description: "Number of columns to delete",
 		},
 		"start_column": {
 			Type:        "integer",
-			Description: "column index to start deleting (1-based)",
+			Description: "First column to delete (1-based). Example: 3 to delete column C onwards",
 		},
 	},
-	Required: []string{"spreadsheet", "sheet", "count", "start_column"},
+	Required: []string{"spreadsheet_name", "sheet_name", "count", "start_column"},
 }
 
 // セル編集リクエスト
 type UpdateCellsRequest struct {
-	SpreadsheetName string          `json:"spreadsheet"`
-	SheetName       string          `json:"sheet"`
+	SpreadsheetName string          `json:"spreadsheet_name"`
+	SheetName       string          `json:"sheet_name"`
 	Range           string          `json:"range"`
 	Data            [][]interface{} `json:"data"`
 }
@@ -252,50 +252,50 @@ type UpdateCellsRequest struct {
 var UpdateCellsInputSchema = &jsonschema.Schema{
 	Type: "object",
 	Properties: map[string]*jsonschema.Schema{
-		"spreadsheet": {
+		"spreadsheet_name": {
 			Type:        "string",
-			Description: "spreadsheet name",
+			Description: "Name of the Google Spreadsheet file",
 		},
-		"sheet": {
+		"sheet_name": {
 			Type:        "string",
-			Description: "sheet name",
+			Description: "Name of the sheet/tab to modify",
 		},
 		"range": {
 			Type:        "string",
-			Description: "cell range (e.g. A1:C10)",
+			Description: "Cell range in A1 notation. Examples: 'A1:C3', 'B2:D5'",
 		},
 		"data": {
 			Type:        "array",
-			Description: "2D array of cell values to update",
+			Description: "2D array of values to write. Example: [[\"Header1\", \"Header2\"], [\"Value1\", \"Value2\"]]",
 			Items: &jsonschema.Schema{
 				Type: "array",
 			},
 		},
 	},
-	Required: []string{"spreadsheet", "sheet", "range", "data"},
+	Required: []string{"spreadsheet_name", "sheet_name", "range", "data"},
 }
 
 // 複数範囲のセル編集リクエスト
 type BatchUpdateCellsRequest struct {
-	SpreadsheetName string                     `json:"spreadsheet"`
-	SheetName       string                     `json:"sheet"`
+	SpreadsheetName string                     `json:"spreadsheet_name"`
+	SheetName       string                     `json:"sheet_name"`
 	Ranges          map[string][][]interface{} `json:"ranges"`
 }
 
 var BatchUpdateCellsInputSchema = &jsonschema.Schema{
 	Type: "object",
 	Properties: map[string]*jsonschema.Schema{
-		"spreadsheet": {
+		"spreadsheet_name": {
 			Type:        "string",
-			Description: "spreadsheet name",
+			Description: "Name of the Google Spreadsheet file",
 		},
-		"sheet": {
+		"sheet_name": {
 			Type:        "string",
-			Description: "sheet name",
+			Description: "Name of the sheet/tab to modify",
 		},
 		"ranges": {
 			Type:        "object",
-			Description: "map of range to 2D array of cell values (e.g. {'A1:B2': [[1, 2], [3, 4]], 'D5:E6': [[5, 6], [7, 8]]})",
+			Description: "Map of cell ranges to 2D arrays of values. Example: {\"A1:B2\": [[\"Name\", \"Age\"], [\"John\", 25]], \"D1:E1\": [[\"Status\", \"Active\"]]}",
 			AdditionalProperties: &jsonschema.Schema{
 				Type: "array",
 				Items: &jsonschema.Schema{
@@ -304,7 +304,7 @@ var BatchUpdateCellsInputSchema = &jsonschema.Schema{
 			},
 		},
 	},
-	Required: []string{"spreadsheet", "sheet", "ranges"},
+	Required: []string{"spreadsheet_name", "sheet_name", "ranges"},
 }
 
 // スプレッドシート名からスプレッドシートIDを取得する
@@ -343,7 +343,7 @@ func (gs *GoogleSheets) getSpreadsheetIdWithContext(ctx context.Context, spreads
 			// フォルダの場合
 			query = fmt.Sprintf("'%s' in parents and name = '%s' and mimeType = 'application/vnd.google-apps.folder' and trashed = false", parentID, part)
 		}
-		
+
 		service, err := gs.auth.GetDriveService(ctx)
 		if err != nil {
 			return "", fmt.Errorf("failed to get drive service: %w", err)
@@ -361,9 +361,9 @@ func (gs *GoogleSheets) getSpreadsheetIdWithContext(ctx context.Context, spreads
 
 		if len(fileList.Files) == 0 {
 			if isLast {
-				return "", fmt.Errorf("spreadsheet not found: %s", spreadsheetName)
+				return "", fmt.Errorf("spreadsheet not found: '%s'. Please check the spreadsheet name. Use google_drive_list_files to find available spreadsheets", spreadsheetName)
 			} else {
-				return "", fmt.Errorf("folder not found: %s", strings.Join(parts[:i+1], "/"))
+				return "", fmt.Errorf("folder not found: '%s'. Please check the folder path. Use google_drive_list_files to browse available folders", strings.Join(parts[:i+1], "/"))
 			}
 		}
 
@@ -399,7 +399,7 @@ func (gs *GoogleSheets) getSheetIdWithContext(ctx context.Context, spreadsheetId
 		}
 	}
 
-	return 0, fmt.Errorf("sheet not found: %s", sheetName)
+	return 0, fmt.Errorf("sheet not found: '%s'. Please check the sheet name. Use google_sheets_list_sheets to see available sheets in this spreadsheet", sheetName)
 }
 
 func (gs *GoogleSheets) CopySheetHandler(ctx context.Context, cc *mcp.ServerSession, params *mcp.CallToolParamsFor[CopySheetRequest]) (*mcp.CallToolResultFor[any], error) {

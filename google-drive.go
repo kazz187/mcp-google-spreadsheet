@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"path"
 	"strings"
@@ -32,7 +33,8 @@ var ListFilesInputSchema = &jsonschema.Schema{
 	Properties: map[string]*jsonschema.Schema{
 		"path": {
 			Type:        "string",
-			Description: "directory path (default: root directory)",
+			Description: "Directory path to list (relative to root folder). Leave empty for root directory. Examples: 'Archive', 'Projects/2024'",
+			Default:     json.RawMessage(`"."`),
 		},
 	},
 }
@@ -47,11 +49,11 @@ var CopyFileInputSchema = &jsonschema.Schema{
 	Properties: map[string]*jsonschema.Schema{
 		"src_path": {
 			Type:        "string",
-			Description: "source path",
+			Description: "Source file/folder path (relative to root folder). Example: 'Archive/document.xlsx'",
 		},
 		"dst_path": {
 			Type:        "string",
-			Description: "destination path",
+			Description: "Destination path including new filename. Example: 'Projects/2024/document-copy.xlsx'",
 		},
 	},
 	Required: []string{"src_path", "dst_path"},
@@ -67,11 +69,11 @@ var RenameFileInputSchema = &jsonschema.Schema{
 	Properties: map[string]*jsonschema.Schema{
 		"path": {
 			Type:        "string",
-			Description: "file path",
+			Description: "Current file/folder path (relative to root folder). Example: 'Archive/old-name.xlsx'",
 		},
 		"new_name": {
 			Type:        "string",
-			Description: "new file name",
+			Description: "New filename only (without path). Example: 'new-name.xlsx'",
 		},
 	},
 	Required: []string{"path", "new_name"},
@@ -125,9 +127,9 @@ func (gd *GoogleDrive) getFileIDByPathWithContext(ctx context.Context, filePath 
 		if len(fileList.Files) == 0 {
 			// 最後のパス部分で、ファイルが存在しない場合はエラー
 			if isLast {
-				return "", fmt.Errorf("file not found: %s", filePath)
+				return "", fmt.Errorf("file not found: '%s'. Please check the file name and path. Use google_drive_list_files to browse available files", filePath)
 			}
-			return "", fmt.Errorf("path not found: %s", strings.Join(parts[:i+1], "/"))
+			return "", fmt.Errorf("folder not found: '%s'. Please check the folder path. Use google_drive_list_files to browse available folders", strings.Join(parts[:i+1], "/"))
 		}
 
 		// 次の親IDを設定（同名ファイルが複数ある場合は最初のものを使用）
