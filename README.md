@@ -1,25 +1,34 @@
 # MCP Google Spreadsheet
 
-MCP (Model Context Protocol) サーバーとして実装された Google Spreadsheet および Google Drive 操作ツールです。このツールを使用することで、AI アシスタントが Google Spreadsheet や Google Drive のファイルを操作できるようになります。
+MCP (Model Context Protocol) サーバーとして実装された Google Spreadsheet および Google Drive 操作ツールです。このツールを使用することで、AI アシスタント（Claude Desktop など）が Google Spreadsheet や Google Drive のファイルを操作できるようになります。
 
 ## 機能
 
 ### Google Drive 操作
 
-- **list_files**: Google Drive のファイル一覧を取得
-- **copy_file**: Google Drive のファイルをコピー
-- **rename_file**: Google Drive のファイル名を変更
+- **google_drive_list_files**: Google Drive 内のファイルとフォルダを一覧表示
+- **google_drive_copy_file**: ファイルまたはフォルダを別の場所にコピー
+- **google_drive_rename_file**: ファイルまたはフォルダの名前を変更
 
 ### Google Spreadsheet 操作
 
-- **list_sheets**: スプレッドシート内のシート一覧を取得
-- **copy_sheet**: スプレッドシート内のシートをコピー
-- **rename_sheet**: スプレッドシート内のシート名を変更
-- **get_sheet_data**: シートのデータを取得
-- **add_rows**: シートに行を追加
-- **add_columns**: シートに列を追加
-- **update_cells**: 単一範囲のセルを更新
-- **batch_update_cells**: 複数範囲のセルを一括更新
+- **google_sheets_list_sheets**: スプレッドシート内のシート（タブ）一覧を取得
+- **google_sheets_copy_sheet**: シートを別のスプレッドシートにコピー
+- **google_sheets_rename_sheet**: シートの名前を変更
+- **google_sheets_read_data**: シートのデータを読み取り（スプレッドシートを「開く」操作）
+- **google_sheets_add_rows**: シートに空の行を挿入
+- **google_sheets_add_columns**: シートに空の列を挿入
+- **google_sheets_update_cells**: 指定範囲のセルの値を更新
+- **google_sheets_batch_update_cells**: 複数範囲のセルを一括更新
+- **google_sheets_delete_rows**: シートから行を削除
+- **google_sheets_delete_columns**: シートから列を削除
+
+## 使用ワークフロー
+
+1. `google_drive_list_files` で Google Drive 内のファイルを探索し、スプレッドシートを見つける
+2. `google_sheets_list_sheets` で特定のスプレッドシート内のシート一覧を確認
+3. `google_sheets_read_data` でシートの内容を表示
+4. 必要に応じて他の `google_sheets_*` ツールでデータを編集
 
 ## 前提条件
 
@@ -27,6 +36,7 @@ MCP (Model Context Protocol) サーバーとして実装された Google Spreads
 - Google Cloud Platform のプロジェクトと API 有効化
   - Google Drive API
   - Google Sheets API
+- Google OAuth 2.0 認証の設定
 
 ## インストール
 
@@ -42,7 +52,7 @@ go install github.com/kazz187/mcp-google-spreadsheet@latest
 
 - `MCPGS_CLIENT_SECRET_PATH`: Google API のクライアントシークレットファイルのパス (https://developers.google.com/identity/protocols/oauth2/native-app?hl=ja)
 - `MCPGS_TOKEN_PATH`: Google API のトークンファイルのパス（存在しない場合は自動的に作成されます）
-- `MCPGS_FOLDER_ID`: 操作対象とする Google Drive のフォルダ ID
+- `MCPGS_FOLDER_ID`: 操作対象とする Google Drive のフォルダ ID（フォルダを右クリック → リンクを取得 → URLの最後の部分）
 
 ### Google API の設定手順
 
@@ -50,7 +60,8 @@ go install github.com/kazz187/mcp-google-spreadsheet@latest
 2. プロジェクトを作成
 3. Google Drive API と Google Sheets API を有効化
 4. 認証情報を作成（OAuth クライアント ID）
-5. クライアントシークレットをダウンロード
+   - アプリケーションの種類：「デスクトップアプリケーション」を選択
+5. クライアントシークレット JSON をダウンロード
 
 ## 使用方法
 
@@ -67,9 +78,9 @@ mcp-google-spreadsheet
 
 初回起動時は認証が必要です。ブラウザが自動的に開き、Google アカウントでの認証画面が表示されます。認証が完了すると自動的にアプリケーションに戻ります。ブラウザが自動的に開かない場合は、コンソールに表示される URL をブラウザで開いてください。
 
-### MCP 設定
+### Claude Desktop での設定
 
-Claude や ChatGPT などの AI アシスタントで使用するには、MCP の設定ファイルに以下のように追加します：
+Claude Desktop で使用する場合は、設定ファイル（macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`）に以下のように追加します：
 
 ```json
 {
@@ -94,3 +105,4 @@ Claude や ChatGPT などの AI アシスタントで使用するには、MCP �
 - 指定されたフォルダ ID 内のファイルのみにアクセスが制限されます
 - ディレクトリトラバーサル攻撃（`../` などを使用したパス指定）は防止されます
 - ユーザーから指定されたファイルが指定フォルダ内に存在するかが検証されます
+
